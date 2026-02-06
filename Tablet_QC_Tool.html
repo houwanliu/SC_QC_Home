@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tablet Config Checker (CDN, IAL+UI+Logs)</title>
+
+<!-- ① 直接调用 xlsx.full.min.js（CDN） -->
+<script>
+(function loadXLSX(){
+  const cdn1 = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+  const cdn2 = "https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js";
+  function inject(src, onok, onerr){
+    const s = document.createElement('script');
+    s.src = src; s.async = true;
+    s.onload = onok; s.onerror = onerr;
+    document.head.appendChild(s);
+  }
+  inject(cdn1, ()=>{ window.__XLSX_READY__ = true; console.log("XLSX loaded via cdnjs"); },
+               ()=>inject(cdn2, ()=>{ window.__XLSX_READY__ = true; console.log("XLSX loaded via unpkg"); },
+                                   ()=>{ window.__XLSX_READY__ = false; console.error("Failed to load XLSX from both CDNs"); }));
+})();
+</script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Microsoft YaHei','SF Pro',sans-serif;background:#f7f7f5;min-height:100vh;color:#2f3437}
+.container{max-width:1400px;margin:0 auto;padding:0 40px}
+.header{color:#2c3e50;padding:80px 60px 20px;text-align:center}
+.header h1{font-size:48px;font-weight:700;letter-spacing:-1.5px;margin-bottom:8px;background:linear-gradient(135deg,#2c3e50,#34495e);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header p{font-size:15px;color:#7f8c8d}
+.upload-section{display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;margin-bottom:28px}
+.upload-box{border:2px dashed rgba(44,62,80,.15);border-radius:18px;padding:28px;text-align:center;background:rgba(255,255,255,.7);backdrop-filter:blur(10px);min-height:240px}
+.upload-box h3{color:#2c3e50;margin-bottom:8px;font-size:18px;font-weight:600}
+.upload-box p{color:#7f8c8d;font-size:13px;margin-bottom:12px}
+.file-input-wrapper{position:relative;display:inline-block;width:100%;margin:12px 0}
+.upload-box input[type=file]{position:absolute;left:-9999px;opacity:0}
+.file-input-label{display:inline-block;padding:10px 22px;background:#2c3e50;color:#fff;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 3px 10px rgba(44,62,80,.2)}
+.file-info{margin-top:12px;padding:12px 14px;background:rgba(236,240,241,.6);border-radius:12px;font-size:12px;color:#7f8c8d;text-align:left;border:1px solid rgba(0,0,0,.04)}
+.controls-row{max-width:980px;margin:0 auto 12px;display:flex;gap:8px;justify-content:flex-end}
+.controls-row button{background:#334155;color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer}
+.controls-row button:disabled{opacity:.5;cursor:not-allowed}
+.check-button{background:linear-gradient(135deg,#2c3e50,#34495e);color:#fff;border:none;padding:14px 40px;border-radius:12px;font-size:15px;font-weight:500;cursor:pointer;display:block;margin:0 auto 6px;box-shadow:0 8px 24px rgba(44,62,80,.25)}
+#status{text-align:center;font-size:12px;color:#7f8c8d;margin:6px auto 10px}
+.results{margin-top:24px}
+.results h3{text-align:center;color:#2c3e50;margin-bottom:18px;font-size:22px;font-weight:700}
+.check-item{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;margin:8px 0;background:#fff;border-radius:14px;border:1px solid #eee}
+.check-item .item-name{font-weight:600;color:#2c3e50;font-size:14px;flex:1}
+.check-item .item-values{font-size:12px;color:#586069;margin:0 18px;text-align:center;flex:2}
+.status{padding:6px 14px;border-radius:10px;font-weight:600;font-size:12px}
+.status.pass{background:rgba(39,174,96,.1);color:#27ae60;border:1px solid rgba(39,174,96,.2)}
+.status.fail{background:rgba(231,76,60,.1);color:#e74c3c;border:1px solid rgba(231,76,60,.2)}
+.summary{margin-top:22px;padding:22px;background:#fff;border-radius:14px;text-align:center;border:1px solid #eee}
+/* 顶部 100% 正确率横幅 */
+.top-banner{max-width:980px;margin:0 auto 18px;padding:14px 16px;border-radius:12px;border:2px solid #22c55e;background:linear-gradient(135deg,rgba(34,197,94,.10),rgba(34,197,94,.18));color:#14532d;box-shadow:0 2px 6px rgba(34,197,94,.15);font-weight:600;text-align:center}
+/* PN 卡片（details/summary 折叠） */
+.pn-card{margin-bottom:16px;border:1px solid #eee;border-radius:16px;background:#fff;overflow:hidden}
+.pn-card summary{list-style:none;cursor:pointer;user-select:none;background:linear-gradient(135deg,#2c3e50,#34495e);color:#fff;padding:14px 18px;font-weight:600;font-size:1rem;display:flex;align-items:center;justify-content:space-between}
+.pn-heading{display:flex;gap:10px;align-items:baseline}
+.pn-heading .pn-id{font-size:1.1rem}
+.pn-heading .pn-full{opacity:.85;font-size:.85rem}
+.badge{display:inline-block;padding:6px 10px;border-radius:14px;font-weight:700;font-size:.85rem;letter-spacing:.2px;background:rgba(255,255,255,.15)}
+.badge-pass{color:#d1fae5}
+.badge-fail{color:#fee2e2}
+.pn-body{padding:12px 14px}
+details.logfold{max-width:1400px;margin:20px auto 40px}
+details.logfold>summary{list-style:none;cursor:pointer;background:#fff;border:1px solid #eee;border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;font-weight:600;color:#2c3e50}
+details.logfold>summary::after{content:"展开日志"}
+details.logfold[open]>summary::after{content:"收起日志"}
+#logPanel{margin-top:10px;background:#fff;border:1px solid #eee;border-radius:10px;padding:10px}
+#log{font-family:ui-monospace,Menlo,Consolas,monospace;background:#0f172a;color:#e2e8f0;padding:10px;border-radius:8px;white-space:pre-wrap;line-height:1.7;font-size:12px;max-height:250px;overflow:auto}
+.log-actions{display:flex;gap:8px;margin-bottom:8px}
+.log-actions button{background:#334155;color:#fff;border:none;padding:6px 10px;border-radius:8px;cursor:pointer}
+@media(max-width:1024px){.upload-section{grid-template-columns:1fr 1fr}}
+@media(max-width:768px){.container{padding:0 20px}.header{padding:40px 20px 18px}.upload-section{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Tablet Config Checker</h1>
+    <p>已通过 CDN 直接调用 <code>xlsx.full.min.js</code>，无需本地文件。</p>
+  </div>
+
+  <div id="config" style="padding:0 0 20px;">
+    <div class="upload-section">
+      <div class="upload-box">
+        <h3>Element.xlsx</h3>
+        <p>包含 “TYPE NAME / ELEMENT NAME / 从第4列起的 PN 列（ZA 开头 10 位）”。</p>
+        <div class="file-input-wrapper">
+          <input type="file" id="elementFile" accept=".xlsx,.xls" />
+          <label for="elementFile" class="file-input-label">选择文件</label>
+        </div>
+        <div id="elementInfo" class="file-info" style="display:none;"></div>
+      </div>
+      <div class="upload-box">
+        <h3>PORSheet.xls</h3>
+        <p>包含 “Number / CAMERA / CAMERA_BACK / BATTERY / CPU / COLOUR / ADAPTER / WLAN / WWAN …”。</p>
+        <div class="file-input-wrapper">
+          <input type="file" id="porFile" accept=".xlsx,.xls" />
+          <label for="porFile" class="file-input-label">选择文件</label>
+        </div>
+        <div id="porInfo" class="file-info" style="display:none;"></div>
+      </div>
+      <div class="upload-box">
+        <h3>IAL.xlsx（Tech）</h3>
+        <p>只需关注 <b>Tech</b> 工作表：A 列为项名（OS/Display/Dimensions/Weight），B 列为细节。</p>
+        <div class="file-input-wrapper">
+          <input type="file" id="ialFile" accept=".xlsx,.xls" />
+          <label for="ialFile" class="file-input-label">选择文件</label>
+        </div>
+        <div id="ialInfo" class="file-info" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="controls-row">
+      <button id="toggleErrorBtn" disabled>只看错误</button>
+    </div>
+
+    <button id="runBtn" class="check-button" disabled>开始配置检验</button>
+    <div id="status">状态：解析库 加载中…；Element 未选择；POR 未选择；IAL 未选择</div>
+
+    <div id="results" class="results" style="display:none;">
+      <h3>配置检验结果</h3>
+      <div id="checkResults"></div>
+      <div id="summary" class="summary"></div>
+    </div>
+  </div>
+
+  <!-- 运行日志 -->
+  <details class="logfold" open>
+    <summary>
+      <span>运行日志</span>
+      <span id="logHint" style="font-size:12px; color:#7f8c8d;">就绪</span>
+    </summary>
+    <div id="logPanel">
+      <div class="log-actions">
+        <button id="logClearBtn">清空日志</button>
+        <button id="logScrollBtn">滚动到底部</button>
+      </div>
+      <div id="log">就绪。</div>
+    </div>
+  </details>
+</div>
+
+<script>
+/* ===== 日志工具 ===== */
+const logDiv=document.getElementById('log'), logHint=document.getElementById('logHint');
+document.getElementById('logClearBtn').addEventListener('click',()=>{ logDiv.textContent='（已清空）'; logHint.textContent='日志已清空'; });
+document.getElementById('logScrollBtn').addEventListener('click',()=>{ logDiv.scrollTop=logDiv.scrollHeight; });
+function log(msg){ const ts=new Date().toISOString().replace('T',' ').slice(0,19); logDiv.textContent+=`\n[${ts}] ${msg}`; logHint.textContent = msg.length>40 ? (msg.slice(0,40)+'…') : msg; }
+
+/* ===== 状态与文件读取 ===== */
+const elIn=document.getElementById('elementFile');
+const porIn=document.getElementById('porFile');
+const ialIn=document.getElementById('ialFile');
+const elInfo=document.getElementById('elementInfo');
+const porInfo=document.getElementById('porInfo');
+const ialInfo=document.getElementById('ialInfo');
+let elementWB=null, porWB=null, ialWB=null;
+
+function refreshStatus(){
+  const libOk = !!(window.__XLSX_READY__ && window.XLSX && XLSX.read);
+  const eOk=!!elementWB, pOk=!!porWB, iOk=!!ialWB;
+  document.getElementById('status').textContent =
+    `状态：解析库 ${libOk?'已加载':'加载中/失败'}；Element ${eOk?'已选择':'未选择'}；POR ${pOk?'已选择':'未选择'}；IAL ${iOk?'已选择':'未选择'}`;
+  document.getElementById('runBtn').disabled = !(libOk && eOk && pOk && iOk);
+  document.getElementById('toggleErrorBtn').disabled = !(libOk && eOk && pOk && iOk);
+}
+setInterval(refreshStatus, 800); // 简单轮询库加载完成
+
+async function readWorkbookSafe(file, tag){
+  try{
+    if(!file) return null;
+    if(!(window.__XLSX_READY__ && window.XLSX && XLSX.read)){
+      log(`[${tag}] 暂不解析：解析库未就绪`); return null;
+    }
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf,{type:'array',WTF:false});
+    log(`[${tag}] 解析成功：工作表=${wb.SheetNames.join(', ')}`);
+    return wb;
+  }catch(err){
+    alert(tag+' 文件读取失败：'+err.message);
+    log(`[${tag}] 文件读取失败：${err.message}`);
+    return null;
+  }
+}
+
+elIn.addEventListener('change', async (e)=>{
+  const f=e.target.files[0];
+  if(!f){ elInfo.style.display='none'; elementWB=null; refreshStatus(); return; }
+  log(`选择了 Element 文件：${f.name}`);
+  elInfo.style.display='block';
+  elInfo.innerHTML=`<strong>文件名:</strong> ${f.name}`;
+  elementWB=await readWorkbookSafe(f,'Element'); refreshStatus();
+});
+
+porIn.addEventListener('change', async (e)=>{
+  const f=e.target.files[0];
+  if(!f){ porInfo.style.display='none'; porWB=null; refreshStatus(); return; }
+  log(`选择了 POR 文件：${f.name}`);
+  porInfo.style.display='block';
+  porInfo.innerHTML=`<strong>文件名:</strong> ${f.name}`;
+  porWB=await readWorkbookSafe(f,'POR'); refreshStatus();
+});
+
+ialIn.addEventListener('change', async (e)=>{
+  const f=e.target.files[0];
+  if(!f){ ialInfo.style.display='none'; ialWB=null; refreshStatus(); return; }
+  log(`选择了 IAL 文件：${f.name}`);
+  ialInfo.style.display='block';
+  ialInfo.innerHTML=`<strong>文件名:</strong> ${f.name}`;
+  ialWB=await readWorkbookSafe(f,'IAL'); refreshStatus();
+});
+
+/* ===== 工具函数 ===== */
+function escapeReg(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+function escapeHTML(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function normalizeHeader(s){ return String(s||'').replace(/\u00A0/g,' ').replace(/[\u200B-\u200D]/g,'').replace(/\s+/g,' ').trim().toUpperCase(); }
+function parseCamMPInt(s){ s=String(s||''); let m=s.match(/(\d+(?:\.\d+)?)\s*MP/i)||s.match(/(\d+)\s*MP/i); if(m){const v=Number(m[1]); if(!Number.isNaN(v)) return Math.round(v);} return null; }
+function parseCamMode(s){ const up=String(s||'').toUpperCase(); if(up.includes('AF')||up.includes('AUTO FOCUS')) return 'AF'; if(up.includes('FF')||up.includes('FIXED FOCUS')) return 'FF'; return null; }
+function intsInText(s){ return (String(s||'').match(/\d+/g)||[]); }
+function normalizeWWANValue(s){ const up=String(s||'').trim().toUpperCase(); if(up===''||up==='NONE'||up==='NO WWAN'||up==='NO') return 'NONE'; return 'SOME'; }
+function isMarked(val){ const s=String(val||'').trim().toUpperCase(); return s==='X' || /^A(?:\.\d+)?$/.test(s) || /^U(?:\.\d+)?$/.test(s); }
+
+/* ===== 绕过 ws['!ref']：真实范围 ===== */
+function computeRealRangeFromKeys(ws) {
+  const isCell = (k) => /^[A-Za-z]+[0-9]+$/.test(k);
+  let minR = Infinity, minC = Infinity, maxR = -Infinity, maxC = -Infinity;
+  for (const k of Object.keys(ws)) {
+    if (!isCell(k)) continue;
+    const cell = XLSX.utils.decode_cell(k);
+    if (cell.r < minR) minR = cell.r;
+    if (cell.c < minC) minC = cell.c;
+    if (cell.r > maxR) maxR = cell.r;
+    if (cell.c > maxC) maxC = cell.c;
+  }
+  if (minR === Infinity) { return XLSX.utils.decode_range(ws['!ref'] || 'A1:A1'); }
+  return { s: { r: minR, c: minC }, e: { r: maxR, c: maxC } };
+}
+
+/* ===== 解析 Element（地址键扫描 + ZA10 + 扩大表头扫描窗） ===== */
+function parseElementSheet(wb){
+  const sheetName = wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+
+  const aoa = XLSX.utils.sheet_to_json(ws,{header:1,blankrows:false,defval:''});
+  if(!aoa.length) throw new Error('Element.xlsx 内容为空。');
+
+  let headerIdx=-1;
+  for(let i=0;i<aoa.length;i++){
+    const row=aoa[i]||[];
+    if(row.some(cell => normalizeHeader(cell)==='TYPE NAME')) { headerIdx=i; break; }
+  }
+  if(headerIdx<0) throw new Error('在 Element.xlsx 中未找到 "TYPE NAME" 行。');
+
+  const headerRow = aoa[headerIdx] || [];
+  let idxType = headerRow.findIndex(h=>normalizeHeader(h)==='TYPE NAME');
+  let idxName = headerRow.findIndex(h=>normalizeHeader(h)==='ELEMENT NAME');
+  if(idxType<0) idxType=1;
+  if(idxName<0) idxName=2;
+
+  const realRange = computeRealRangeFromKeys(ws);
+  const refRange  = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
+  log(`Excel 范围(报告的 !ref): ${XLSX.utils.encode_range(refRange)}；真实范围(地址键): ${XLSX.utils.encode_range(realRange)}；headerIdx=${headerIdx}；idxType=${idxType}；idxName=${idxName}`);
+
+  const pnCols=[];
+  const ZA10 = /(?:\[|［|【)?(ZA[A-Za-z0-9]{8})(?:\]|］|】)?/;
+
+  function findPNInTopRows(c){
+    const upperLimit = Math.min(realRange.e.r, headerIdx + 20);
+    for (let r = 0; r <= upperLimit; r++) {
+      const addr = XLSX.utils.encode_cell({r, c});
+      const cell = ws[addr];
+      const h = cell ? String(cell.v||'').trim() : '';
+      const m = h.match(ZA10);
+      if (m) return { fullHeader: h, pn: m[1] };
+    }
+    return null;
+  }
+
+  for(let c=3; c<=realRange.e.c; c++){
+    let markCount=0;
+    for(let r=headerIdx+1; r<=realRange.e.r; r++){
+      const v = (ws[XLSX.utils.encode_cell({r,c})]||{}).v;
+      if(isMarked(v)) markCount++;
+    }
+    const hit = findPNInTopRows(c);
+    if (hit || markCount>=3) {
+      const headerText = hit ? hit.fullHeader : `(列${c+1})`;
+      const pnName     = hit ? hit.pn       : `(UNKNOWN_C${c+1})`;
+      pnCols.push({ colIdx:c, header:headerText, pn:pnName });
+    }
+  }
+
+  const unknownCount = pnCols.filter(x=>String(x.pn).startsWith('(UNKNOWN_')).length;
+  if(unknownCount) log(`提示：仍有 ${unknownCount} 个列未抽取到 PN 文本（UNKNOWN）。`);
+
+  log(`识别到 PN 列数: ${pnCols.length}；示例: ${pnCols.slice(0,10).map(x=>x.pn).join(', ')||'(空)'}`);
+  return { wb, ws, headerIdx, idxType, idxName, pnCols, range: realRange };
+}
+
+/* ===== 解析 POR（AoA 下标） ===== */
+function parsePORAoA(wb){
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const aoa = XLSX.utils.sheet_to_json(ws,{header:1,blankrows:false,defval:''});
+  if(!aoa.length) throw new Error('PORSheet.xls 内容为空。');
+  const headers=(aoa[0]||[]).map(h=>String(h||'').trim());
+  const rowsAoA=aoa.slice(1);
+  const idx=(name)=> headers.findIndex(h=>normalizeHeader(h)===normalizeHeader(name));
+  const idxNum=idx('Number'); if(idxNum<0) throw new Error('PORSheet.xls 缺少关键列 "Number"。');
+  return { headers, rowsAoA, idxNum, idxFront:idx('CAMERA'), idxBack:idx('CAMERA_BACK'), idxBat:idx('BATTERY'),
+           idxCPU:idx('CPU'), idxColour:idx('COLOUR'), idxAdapter:idx('ADAPTER'), idxWLAN:idx('WLAN'), idxWWAN:idx('WWAN') };
+}
+
+/* ===== 解析 IAL（Tech 工作表） ===== */
+function parseIALTech(wb){
+  let techSheetName = wb.SheetNames.find(n=>normalizeHeader(n)==='TECH');
+  if(!techSheetName){ throw new Error('在 IAL 中未找到 "Tech" 工作表'); }
+  const ws = wb.Sheets[techSheetName];
+  const aoa = XLSX.utils.sheet_to_json(ws,{header:1,blankrows:false,defval:''});
+  if(!aoa.length) throw new Error('IAL.Tech 内容为空');
+
+  const getRow = (keyRegexArr) => {
+    for(let i=0;i<aoa.length;i++){
+      const a = String((aoa[i]||[])[0]||'').trim();
+      const A = a.toUpperCase();
+      if(keyRegexArr.some(rx=>rx.test(A))) {
+        const val = String((aoa[i]||[])[1]||'').trim();
+        return { rowIdx:i, key:a, value:val };
+      }
+    }
+    return null;
+  };
+  const osRow   = getRow([/^OS$/]);
+  const dispRow = getRow([/^DISPLAY$/]);
+  const dimRow  = getRow([/^DIMENSIONS?$/]);
+  const wgtRow  = getRow([/^WEIGHT/i]);
+
+  let dims = null;
+  if(dimRow && dimRow.value){
+    const nums = (dimRow.value.match(/[\d.]+/g)||[]).map(x=>Number(x)).filter(x=>!Number.isNaN(x));
+    if(nums.length>=3){ dims = nums.slice(0,3); }
+  }
+
+  let weight_g = null;
+  if(wgtRow && wgtRow.value){
+    const m = wgtRow.value.match(/(\d+(?:\.\d+)?)\s*g/i);
+    if(m){ weight_g = Math.round(Number(m[1])); }
+  }
+
+  log(`IAL.Tech 解析：OS='${osRow?osRow.value:'(无)'}'；Display='${dispRow?dispRow.value:'(无)'}'；Dims=${dims?dims.join('/'):'(无)'}；Weight=${weight_g??'(无)'}g`);
+  return { osText: osRow?osRow.value:'', displayText: dispRow?dispRow.value:'', dims, weight_g };
+}
+
+/* ===== Element: OS 工作表 LONGDESC_OS 全表格式校验 ===== */
+function validateAllOSLongdesc(wb){
+  const osSheetName = wb.SheetNames.find(n=>normalizeHeader(n)==='OS');
+  if(!osSheetName){ log('提示：Element 中未找到 OS 工作表，跳过 LONGDESC_OS 格式校验'); return { invalid:[] }; }
+  const ws = wb.Sheets[osSheetName];
+  const aoa = XLSX.utils.sheet_to_json(ws,{header:1,blankrows:false,defval:''});
+  if(!aoa.length){ log('提示：Element.OS 工作表为空'); return { invalid:[] }; }
+  const headers = (aoa[0]||[]).map(h=>String(h||'').trim());
+  const idxLong = headers.findIndex(h=>normalizeHeader(h)==='LONGDESC_OS');
+  if(idxLong<0){ log('提示：Element.OS 未找到 LONGDESC_OS 列'); return { invalid:[] }; }
+
+  const invalid = [];
+  for(let i=1;i<aoa.length;i++){
+    const v = String((aoa[i]||[])[idxLong]||'').trim();
+    const ok = /^Android\s+\d+\s+or\s+later$/i.test(v);
+    if(!ok){ invalid.push({row:i+1, value:v}); }
+  }
+  if(invalid.length){
+    log(`OS LONGDESC_OS 格式不合规条数：${invalid.length}`);
+  }else{
+    log('OS LONGDESC_OS 全部合规');
+  }
+  return { invalid };
+}
+
+/* ===== PP 工作表：按 Element ID 取几何与重量 ===== */
+function getPPMetricsByElementID(wb, elementId){
+  const ppSheetName = wb.SheetNames.find(n=>normalizeHeader(n)==='PP');
+  if(!ppSheetName){ return null; }
+  const ws = wb.Sheets[ppSheetName];
+  const aoa = XLSX.utils.sheet_to_json(ws,{header:1,blankrows:false,defval:''});
+  if(!aoa.length){ return null; }
+  const headers=(aoa[0]||[]).map(h=>String(h||'').trim());
+  const idx=(name)=> headers.findIndex(h=>normalizeHeader(h)===normalizeHeader(name));
+  const idxId    = idx('ELEMENT ID');
+  const idxH     = idx('HEIGHT_MET');
+  const idxW     = idx('WIDTH_MET');
+  const idxD     = idx('DEPTH_MET');
+  const idxWeight= idx('WEIGHT_MET');
+
+  if([idxId,idxH,idxW,idxD,idxWeight].some(x=>x<0)) return null;
+
+  for(let i=1;i<aoa.length;i++){
+    const row=aoa[i]||[];
+    const idCell = String(row[idxId]||'').trim();
+    if(idCell===String(elementId)){
+      const h = Number(row[idxH]); const w = Number(row[idxW]); const d = Number(row[idxD]); const kg = Number(row[idxWeight]);
+      if([h,w,d,kg].some(x=>Number.isNaN(x))) return null;
+      return { height_mm: h, width_mm: w, depth_mm: d, weight_g: Math.round(kg*1000) };
+    }
+  }
+  return null;
+}
+
+/* ===== 构建结果（融合 IAL 基准与核查） ===== */
+function buildResultsSheet(elem, por, elementWB, ialTech){
+  const { ws, headerIdx, idxType, idxName, pnCols, range } = elem;
+  const out=[]; const porMap=new Map();
+  por.rowsAoA.forEach(r=>{ const num=String(r[por.idxNum]||'').trim(); if(num) porMap.set(num,r); });
+
+  const cellVal = (r,c)=>{ const addr=XLSX.utils.encode_cell({r,c}); const cell=ws[addr]; return cell ? String(cell.v||'') : ''; };
+  const norm = (s)=> normalizeHeader(s);
+  function markedRowIndicesForPN(colIdx){ const rs=[]; for(let r=headerIdx+1; r<=range.e.r; r++){ const v=cellVal(r,colIdx); if(isMarked(v)) rs.push(r); } return rs; }
+  function byType(rowIdxArr, typeKey){ const T = typeKey.toUpperCase(); return rowIdxArr.filter(r=> norm(cellVal(r, idxType))===T ); }
+
+  // OS LONGDESC_OS 全表格式校验
+  const osLongCheck = validateAllOSLongdesc(elementWB.wb||elementWB);
+
+  pnCols.forEach(({ colIdx, header, pn })=>{
+    const porRow=porMap.get(String(pn));
+    const items=[]; const pushItem=(name,baseline,test,ok,msg)=>items.push({ name, baseline, test, isMatch:!!ok, message:msg||'' });
+
+    if(String(pn).startsWith('(UNKNOWN_')) {
+      pushItem('POR匹配','-','-',false,`PN ${pn} 在 POR 表中未找到（列头未抽取到 PN 文本）`);
+      out.push({ pn, fullName: header, items, passCount:0, failCount:items.length });
+      return;
+    }
+    if(!porRow){
+      pushItem('POR匹配','-','-',false,`PN ${pn} 在 POR 表中未找到`);
+      out.push({ pn, fullName: header, items, passCount:0, failCount:items.length });
+      return;
+    }
+
+    const mrIdxs = markedRowIndicesForPN(colIdx);
+    const typeList=['CAM','BAT','MEM','HD','PRC','IMG','PP','OS','MON','WS','PS'];
+    const typeCount=typeList.map(t=>`${t}:${byType(mrIdxs,t).length}`).join(' | ');
+    log(`PN ${pn} 标记计数 -> ${typeCount}`);
+
+    // 摄像头
+    [['前置',por.idxFront,'Front Camera'],['后置',por.idxBack,'Back Camera']].forEach(([cnLabel,porIdx,keyword])=>{
+      const porVal=String(porRow[porIdx]||'').trim(); if(!porVal || porVal.toUpperCase()==='NONE') return;
+      const porMP=parseCamMPInt(porVal), porMode=parseCamMode(porVal);
+      const camRows=byType(mrIdxs,'CAM'); let found=false, match=true, testStr='(未找到)';
+      for(const r of camRows){ const name=cellVal(r, idxName); if(name.includes(keyword)){ found=true; testStr=name;
+        const eMP=parseCamMPInt(name), eMode=parseCamMode(name);
+        if((porMP!=null && eMP!=null && porMP!==eMP)||(porMode!==eMode)) match=false; } }
+      if(!found) pushItem(`${cnLabel}摄像头`,porVal,testStr,false,`缺少${cnLabel}摄像头标记`); else pushItem(`${cnLabel}摄像头`,porVal,testStr,match,match?'参数匹配':'参数不匹配');
+    });
+
+    // 电池
+    const porBat=String(porRow[por.idxBat]||''); const porBatNums=porBat.match(/\d+/g)||[]; const batRows=byType(mrIdxs,'BAT');
+    if(batRows.length!==1) pushItem('Battery',porBat,`(标记数 ${batRows.length})`,false,'电池数量不正确（期望1）');
+    else { const name=cellVal(batRows[0],idxName); const nums=name.match(/\d+/g)||[]; const ok=porBatNums.every(n=>nums.includes(n)); pushItem('Battery',porBat,name,ok,ok?'参数匹配':'参数不匹配'); }
+
+    // MEM & HD（来自 PN 文本）
+    const specM=String(header).match(/(\d+)\s*G\s*\+\s*(\d+)\s*G/i);
+    if(specM){
+      const memSpecInt=specM[1], hdSpecInt=specM[2];
+      const memRows=byType(mrIdxs,'MEM');
+      if(!memRows.length) pushItem('Memory',`${memSpecInt}G`,'(未标记)',false,'缺少 MEM 标记');
+      else { const preferred=memRows.find(r=>intsInText(cellVal(r,idxName)).includes(memSpecInt)) ?? memRows[0];
+        const name=cellVal(preferred,idxName); const ok=intsInText(name).includes(memSpecInt);
+        pushItem('Memory',`${memSpecInt}G`,name,ok,ok?'容量匹配':'容量不匹配'); }
+      const hdRows=byType(mrIdxs,'HD');
+      if(!hdRows.length) pushItem('Storage',`${hdSpecInt}G`,'(未标记)',false,'缺少 HD 标记');
+      else { const preferred=hdRows.find(r=>intsInText(cellVal(r,idxName)).includes(hdSpecInt)) ?? hdRows[0];
+        const name=cellVal(preferred,idxName); const ok=intsInText(name).includes(hdSpecInt);
+        pushItem('Storage',`${hdSpecInt}G`,name,ok,ok?'容量匹配':'容量不匹配'); }
+    }
+
+    // 处理器
+    const porCPU=String(porRow[por.idxCPU]||''); const porCPUints=porCPU.match(/\d+/g)||[]; const prcRows=byType(mrIdxs,'PRC');
+    if(prcRows.length!==1) pushItem('Processor',porCPU,`(标记数 ${prcRows.length})`,false,'处理器数量不正确（期望1）');
+    else { const name=cellVal(prcRows[0],idxName); const eInts=name.match(/\d+/g)||[]; const ok=porCPUints.length ? porCPUints.every(n=>eInts.includes(n)) : true; pushItem('Processor',porCPU,name,ok,ok?'参数匹配':'参数不匹配'); }
+
+    // IMG（颜色）
+    const porColour=String(porRow[por.idxColour]||'').trim();
+    const imgRows=byType(mrIdxs,'IMG');
+    if(imgRows.length!==1) pushItem('IMG',porColour||'(未提供)',`(标记数 ${imgRows.length})`,false,'IMG 数量不正确（期望1）');
+    else { const name=cellVal(imgRows[0],idxName); const ok=porColour ? name.toLowerCase().includes(porColour.toLowerCase()) : true; pushItem('IMG',porColour||'(未提供)',name,ok,ok?'颜色匹配':'颜色不匹配'); }
+
+    // PP：IAL 尺寸/重量 vs Element.PP
+    const ppRows=byType(mrIdxs,'PP');
+    if(!ppRows.length){
+      const baselineText=`${porColour||'(无颜色)'} | ${ialTech.dims?ialTech.dims.join('×')+'mm':'(无尺寸)'} | ${ialTech.weight_g!=null?ialTech.weight_g+'g':'(无重量)'}`;
+      pushItem('PP（尺寸/重量）', baselineText, '(未标记)', false, '缺少 PP 标记');
+    }else{
+      const idCell = cellVal(ppRows[0], 0);
+      const mId = idCell.match(/\[(\d+)\]/);
+      const ppId = mId ? mId[1] : null;
+      const ppMetrics = ppId ? getPPMetricsByElementID(elementWB.wb||elementWB, ppId) : null;
+
+      const baselineText=`${porColour||'(无颜色)'} | ${ialTech.dims?ialTech.dims.join('×')+'mm':'(无尺寸)'} | ${ialTech.weight_g!=null?ialTech.weight_g+'g':'(无重量)'}`;
+      if(!ppMetrics || !ialTech.dims || ialTech.weight_g==null){
+        const name = cellVal(ppRows[0], idxName);
+        pushItem('PP（尺寸/重量）', baselineText, name || '(未查到 PP 工作表参数)', false, 'PP 参数不足，无法比对（IAL 或 Element.PP 缺失）');
+      }else{
+        const sorted = [...ialTech.dims].map(Number).sort((a,b)=>b-a);
+        const ialH=sorted[0], ialW=sorted[1], ialD=sorted[2];
+        const elH=ppMetrics.height_mm, elW=ppMetrics.width_mm, elD=ppMetrics.depth_mm, elG=ppMetrics.weight_g;
+
+        function eq(a,b){ return Math.round(a*100)/100 === Math.round(b*100)/100; }
+        let okH=eq(ialH,elH), okW=eq(ialW,elW), okD=eq(ialD,elD), okG=(ialTech.weight_g===elG);
+        const testText = `H:${elH}mm / W:${elW}mm / D:${elD}mm / Weight:${elG}g`;
+        const ok = okH && okW && okD && okG;
+        let msg='';
+        if(!ok){
+          const errs=[];
+          if(!okH) errs.push(`高度不匹配（IAL ${ialH}mm ≠ EL ${elH}mm）`);
+          if(!okW) errs.push(`宽度不匹配（IAL ${ialW}mm ≠ EL ${elW}mm）`);
+          if(!okD) errs.push(`厚度不匹配（IAL ${ialD}mm ≠ EL ${elD}mm）`);
+          if(!okG) errs.push(`重量不匹配（IAL ${ialTech.weight_g}g ≠ EL ${elG}g）`);
+          msg = errs.join('；');
+        }else{
+          msg='尺寸与重量匹配';
+        }
+        pushItem('PP（尺寸/重量）', baselineText, testText, ok, msg);
+      }
+    }
+
+    // OS：IAL 为基准 + Element.OS LONGDESC_OS 格式核查
+    const osRows=byType(mrIdxs,'OS');
+    const osBaseline = ialTech.osText || '(IAL 未提供)';
+    if(!osRows.length){
+      pushItem('OS', osBaseline, '(未标记)', false, '缺少 OS 标记');
+    }else{
+      const name = cellVal(osRows[0], idxName);
+      const invalidCnt = osLongCheck.invalid.length;
+      const ok = invalidCnt===0;
+      const msg = ok ? 'LONGDESC_OS 全部合规' : `OS 工作表 LONGDESC_OS 格式错误 ${invalidCnt} 条`;
+      pushItem('OS', osBaseline, name || '(未取到元素名)', ok, msg);
+    }
+
+    // MON：只展示 IAL.Display 为基准，但核查数量（期望 1）
+    const monRows = byType(mrIdxs, 'MON');
+    const monBaseline = ialTech.displayText || '(IAL 未提供)';
+    if (monRows.length !== 1) {
+      pushItem('MON', monBaseline, `(标记数 ${monRows.length})`, false, 'MON 数量不正确（期望1）');
+    } else {
+      const monName = cellVal(monRows[0], idxName);
+      pushItem('MON', monBaseline, monName || '(未取到元素名)', true, '数量正确（参数不核查）');
+    }
+
+    // WS / WLAN / BT / WWAN
+    const porWLAN=String(porRow[por.idxWLAN]||''); const wsRows=byType(mrIdxs,'WS'); const wsNames=wsRows.map(r=>cellVal(r,idxName));
+    const wlanPart=porWLAN.includes('+')? porWLAN.split('+')[0] : porWLAN;
+    if(wlanPart && wlanPart.toLowerCase()!=='nan'){ const ok=wsNames.some(n=>n.toLowerCase().includes(wlanPart.toLowerCase())); const testStr=wsNames.join(' / ')||'(未标记)'; pushItem('WLAN',wlanPart,testStr,ok,ok?'匹配':'未在标记元素中找到'); }
+    if(porWLAN.includes('+')){ const btPart=porWLAN.split('+')[1]; let m=btPart.match(/BT\s*([0-9]+(?:\.[0-9]+)?)/i)||btPart.match(/Bluetooth[^0-9]*([0-9]+(?:\.[0-9]+)?)/i);
+      if(m){ const ver=m[1]; const ok=wsNames.some(n=> new RegExp('Bluetooth[^0-9]*'+escapeReg(ver),'i').test(n)); const testStr=wsNames.join(' / ')||'(未标记)'; pushItem('Bluetooth','BT '+ver,testStr,ok,ok?'匹配':'版本不匹配'); }
+    }
+    const porWWAN=String(porRow[por.idxWWAN]||''); const wwanStatus=normalizeWWANValue(porWWAN); const hasWWANMarked=wsNames.some(n=>/(WWAN|LTE|5G|4G|NR)/i.test(n));
+    let wwanOk=true, wwanMsg='匹配'; if(wwanStatus==='SOME' && !hasWWANMarked){ wwanOk=false; wwanMsg='缺少 WWAN 标记'; } else if(wwanStatus==='NONE' && hasWWANMarked){ wwanOk=false; wwanMsg='POR 为 None，但标记了 WWAN'; }
+    pushItem('WWAN', porWWAN||'(未提供)', hasWWANMarked?'有 WWAN 标记':'无 WWAN 标记', wwanOk, wwanMsg);
+
+    const passCount=items.filter(i=>i.isMatch).length, failCount=items.length-passCount;
+    out.push({ pn, fullName: header, items, passCount, failCount });
+  });
+
+  return out;
+}
+
+/* ===== 渲染（失败优先 + 折叠 + 100% 横幅 + “只看错误=仅失败PN与失败项”） ===== */
+function renderCards(allResults){
+  const resultsDiv = document.getElementById('results');
+  const checkResultsDiv = document.getElementById('checkResults');
+  const summaryDiv = document.getElementById('summary');
+  const toggleErrorBtn = document.getElementById('toggleErrorBtn');
+
+  checkResultsDiv.innerHTML = '';
+
+  let totalsAllPassItems = 0, totalsAllFailItems = 0;
+  let totalPNs = allResults.length;
+  let withFails = 0;
+
+  allResults.forEach(r=>{
+    totalsAllPassItems += r.passCount;
+    totalsAllFailItems += r.failCount;
+    if (r.failCount > 0) withFails++;
+  });
+
+  const allPass = withFails === 0;
+
+  let showOnlyErrors = false;
+  toggleErrorBtn.disabled = false;
+  toggleErrorBtn.textContent = '只看错误';
+  toggleErrorBtn.onclick = () => {
+    showOnlyErrors = !showOnlyErrors;
+    toggleErrorBtn.textContent = showOnlyErrors ? '显示全部' : '只看错误';
+    log(`视图切换：只看错误 = ${showOnlyErrors ? '开启' : '关闭'}`);
+    renderCore();
+  };
+
+  if (allPass) {
+    const banner = document.createElement('div');
+    banner.className = 'top-banner';
+    banner.innerHTML = '✅ 本次检验全部通过（正确率 <b>100%</b>）';
+    checkResultsDiv.appendChild(banner);
+  }
+
+  const sorted = [
+    ...allResults.filter(r => r.failCount > 0),
+    ...allResults.filter(r => r.failCount === 0)
+  ];
+
+  function renderCore(){
+    Array.from(checkResultsDiv.querySelectorAll('.pn-card, .total-info, .empty-hint')).forEach(el=>el.remove());
+
+    const totalInfoDiv = document.createElement('div');
+    totalInfoDiv.className = 'total-info';
+    totalInfoDiv.style.cssText = `
+      background: rgba(227,242,253,.8);
+      border: 2px solid #2196f3;
+      border-radius: 12px;
+      padding: 10px;
+      margin-bottom: 14px;
+      font-size: 14px;
+      font-weight: 600;
+      text-align: center;
+      max-width: 980px;
+      margin-left: auto;
+      margin-right: auto;
+    `;
+    totalInfoDiv.innerHTML = `共检验 <span style="color:#2196f3;font-size:18px;">${totalPNs}</span> 个 PN`;
+    checkResultsDiv.appendChild(totalInfoDiv);
+
+    let renderedAny = false;
+
+    sorted.forEach((res, idx) => {
+      if (showOnlyErrors && res.failCount === 0) return;
+
+      const itemsToRender = showOnlyErrors ? res.items.filter(i => !i.isMatch) : res.items;
+      if (showOnlyErrors && itemsToRender.length === 0) return;
+
+      renderedAny = true;
+
+      const detailsEl = document.createElement('details');
+      detailsEl.className = 'pn-card';
+      detailsEl.open = res.failCount > 0;
+
+      const summaryEl = document.createElement('summary');
+
+      const passRate = res.items.length ? ((res.passCount / res.items.length) * 100).toFixed(1) : '0.0';
+      const badge = document.createElement('span');
+      badge.className = 'badge ' + (res.failCount === 0 ? 'badge-pass' : 'badge-fail');
+      badge.textContent = showOnlyErrors ? `失败项 ${res.failCount}` : `通过率 ${passRate}%`;
+
+      const heading = document.createElement('div');
+      heading.className = 'pn-heading';
+      heading.innerHTML = `
+        <div class="pn-id">PN ${idx + 1}: ${escapeHTML(res.pn)}</div>
+        <div class="pn-full">${escapeHTML(res.fullName)}</div>
+      `;
+
+      summaryEl.appendChild(heading);
+      summaryEl.appendChild(badge);
+      detailsEl.appendChild(summaryEl);
+
+      const bodyEl = document.createElement('div');
+      bodyEl.className = 'pn-body';
+
+      itemsToRender.forEach(it => {
+        const isPass = it.isMatch;
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'check-item';
+        itemDiv.innerHTML = `
+          <div class="item-name">${escapeHTML(it.name)}</div>
+          <div class="item-values">
+            基准：<b>${escapeHTML(it.baseline || '(空)')}</b><br>
+            测试：<b>${escapeHTML(it.test || '(空)')}</b>
+            ${it.message ? `<br><small style="color:${isPass ? '#28a745' : '#dc3545'};">${isPass ? '✓' : '✗'} ${escapeHTML(it.message)}</small>` : ''}
+          </div>
+          <div class="status ${isPass ? 'pass' : 'fail'}">${isPass ? 'PASS' : 'FAIL'}</div>
+        `;
+        bodyEl.appendChild(itemDiv);
+      });
+
+      detailsEl.appendChild(bodyEl);
+      checkResultsDiv.appendChild(detailsEl);
+    });
+
+    if (showOnlyErrors && !renderedAny) {
+      const emptyHint = document.createElement('div');
+      emptyHint.className = 'empty-hint';
+      emptyHint.style.cssText = `
+        max-width: 980px;
+        margin: 8px auto 16px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px dashed #22c55e;
+        background: rgba(34,197,94,.08);
+        color: #14532d;
+        text-align: center;
+        font-weight: 600;
+      `;
+      emptyHint.textContent = '🎉 当前筛选无错误项（全部通过）';
+      checkResultsDiv.appendChild(emptyHint);
+    }
+
+    const totalCount = totalsAllPassItems + totalsAllFailItems;
+    const totalPassRate = totalCount ? ((totalsAllPassItems / totalCount) * 100).toFixed(1) : '0.0';
+    const successfulPNs = allResults.filter(r => r.failCount === 0).length;
+    const partialPNs    = allResults.filter(r => r.failCount > 0).length;
+
+    summaryDiv.innerHTML = `
+      <div style="display:flex;justify-content:center;gap:40px;flex-wrap:wrap;">
+        <div><div class="stat-number">${totalPNs}</div><div class="stat-label">总 PN 数</div></div>
+        <div><div class="stat-number pass">${successfulPNs}</div><div class="stat-label">完全通过</div></div>
+        <div><div class="stat-number fail">${partialPNs}</div><div class="stat-label">部分通过</div></div>
+        <div><div class="stat-number pass">${totalsAllPassItems}</div><div class="stat-label">总通过项</div></div>
+        <div><div class="stat-number fail">${totalsAllFailItems}</div><div class="stat-label">总失败项</div></div>
+        <div><div class="stat-number">${totalPassRate}%</div><div class="stat-label">总通过率</div></div>
+      </div>`;
+    resultsDiv.style.display = 'block';
+  }
+
+  renderCore();
+}
+
+/* ===== 执行按钮 ===== */
+document.getElementById('runBtn').addEventListener('click', async ()=>{
+  log('点击“开始配置检验”。校验前置条件…');
+  if(!(window.__XLSX_READY__ && window.XLSX && XLSX.read)){ alert('解析库未加载：请稍候或检查网络访问 CDN。'); log('前置条件失败：解析库未加载'); return; }
+  if(!(elementWB && porWB && ialWB)){ alert('请先选择 Element.xlsx / PORSheet.xls / IAL.xlsx'); log('前置条件失败：未选择文件'); return; }
+  const btn=document.getElementById('runBtn'); btn.disabled=true;
+  try{
+    log('解析 Element.xlsx（按单元格地址 + ZA10 + 扩窗）…'); const elemSheet=parseElementSheet(elementWB);
+    log(`Element 解析完成：headerIdx=${elemSheet.headerIdx}，识别 PN=${elemSheet.pnCols.length}`);
+    log('解析 PORSheet.xls（AoA 下标版）…'); const porAoA=parsePORAoA(porWB);
+    log(`POR 解析完成：数据行=${porAoA.rowsAoA.length}，表头列=${porAoA.headers.length}`);
+    log('解析 IAL.Tech …'); const ialTech=parseIALTech(ialWB);
+    log('执行详细校验 …'); const results=buildResultsSheet(elemSheet, porAoA, elemSheet, ialTech);
+    log(`校验完成：PN 数=${results.length}`);
+    log('渲染结果 …'); renderCards(results);
+    log('完成。'); document.querySelector('details.logfold').open=false;
+  }catch(err){ alert('执行失败：'+err.message); log('执行失败：'+err.message); console.error(err); }
+  finally{ btn.disabled=false; }
+});
+</script>
+</body>
+</html>
