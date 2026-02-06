@@ -1,0 +1,1560 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Accessory QC Tool</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+      background: #f0f2f5; /* Ant Design-like layout background */
+      min-height: 100vh;
+      padding: 20px;
+      color: rgba(0, 0, 0, 0.88);
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 20px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+    .header {
+      background: #fff;
+      color: rgba(0, 0, 0, 0.88);
+      padding: 22px 28px;
+      border-bottom: 1px solid #f0f0f0;
+      text-align: left;
+    }
+    .header h1 { font-size: 1.5rem; margin-bottom: 6px; font-weight: 600; }
+    .header p { font-size: 0.95rem; color: rgba(0,0,0,0.55); }
+    .tabs { background: #fff; display: flex; border-bottom: 1px solid #f0f0f0; }
+    .tab {
+      flex: 1;
+      padding: 18px;
+      background: #fff;
+      border: none;
+      cursor: pointer;
+      font-size: 1.05rem;
+      font-weight: bold;
+      color: rgba(0,0,0,0.65);
+      transition: all 0.3s ease;
+    }
+    .tab.active { color: #1677ff; border-bottom: 2px solid #1677ff; }
+    .tab:hover:not(.active) { background: #fafafa; }
+    .tab-content { display: none; padding: 36px; }
+    .tab-content.active { display: block; }
+    .upload-section { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 30px; }
+    .upload-box {
+      border: 1px dashed #d9d9d9;
+      border-radius: 15px;
+      padding: 24px;
+      text-align: center;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      background: #fff;
+    }
+    .upload-box::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(135deg, rgba(102,126,234,.10) 0%, rgba(118,75,162,.10) 100%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .upload-box:hover { border-color: #1677ff; transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,.08); }
+    .upload-box:hover::before { opacity: 1; }
+    .upload-box > * { position: relative; z-index: 1; }
+    .upload-box h3 { color: rgba(0,0,0,0.88); margin-bottom: 10px; font-size: 1.05rem; font-weight: 600; }
+    .upload-box input[type="file"] {
+      margin: 12px 0;
+      padding: 10px;
+      border: 2px solid #e1e5e9;
+      border-radius: 8px;
+      width: 100%;
+      background: white;
+    }
+    .file-info {
+      margin-top: 12px;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      font-size: .9rem;
+      color: #666;
+      text-align: left;
+    }
+    .check-button {
+      background: #1677ff;
+      color: white;
+      border: none;
+      padding: 14px 38px;
+      border-radius: 50px;
+      font-size: 1.05rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: block;
+      margin: 10px auto 0;
+      box-shadow: 0 4px 10px rgba(22, 119, 255, .25);
+    }
+    .check-button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(22, 119, 255, .30); }
+    .check-button:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+    .error-message {
+      background: #f8d7da;
+      color: #721c24;
+      padding: 16px 20px;
+      border-radius: 10px;
+      margin: 16px 36px;
+      border: 1px solid #f5c6cb;
+      display: none;
+    }
+    .results {
+      margin-top: 28px;
+      padding: 26px;
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid #f0f0f0;
+      display: none;
+    }
+    .results h3 { color: #333; margin-bottom: 18px; font-size: 1.35rem; }
+    .check-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      margin: 10px 0;
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid #f0f0f0;
+      box-shadow: none;
+      transition: all 0.3s ease;
+    }
+    .check-item:hover { border-color: #e6f4ff; background: #fafcff; transform: translateX(2px); }
+    .item-name { font-weight: bold; color: #333; flex: 1; }
+    .item-values { font-family: "Courier New", monospace; font-size: .9rem; color: #666; margin: 0 18px; text-align: center; flex: 2; }
+    .status { padding: 2px 10px; border-radius: 999px; font-weight: 600; font-size: .85rem; white-space: nowrap; border: 1px solid transparent; }
+    .status.pass { background: #f6ffed; color: #389e0d; border-color: #b7eb8f; }
+    .status.fail { background: #fff2f0; color: #cf1322; border-color: #ffccc7; }
+    .status.warn { background: #fffbe6; color: #d46b08; border-color: #ffe58f; }
+    details.qc-details {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed #f0f0f0;
+    }
+    details.qc-details > summary {
+      cursor: pointer;
+      color: rgba(0,0,0,0.65);
+      font-size: .9rem;
+      user-select: none;
+    }
+    .kv-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .kv-box {
+      border: 1px solid #f0f0f0;
+      border-radius: 10px;
+      padding: 10px;
+      background: #fafafa;
+      overflow: auto;
+      max-height: 220px;
+    }
+    .kv-box-title {
+      font-size: .85rem;
+      color: rgba(0,0,0,0.55);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .kv-pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: .85rem;
+      color: rgba(0,0,0,0.75);
+      white-space: pre-wrap;
+    }
+    .diff-line { margin-top: 8px; color: rgba(0,0,0,0.65); font-size: .9rem; }
+    .diff-badge {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 999px;
+      border: 1px solid #f0f0f0;
+      background: #fff;
+      margin-right: 6px;
+      font-size: .8rem;
+      color: rgba(0,0,0,0.65);
+    }
+    .summary { margin-top: 18px; }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .summary-card {
+      background: #fff;
+      border: 1px solid #f0f0f0;
+      border-radius: 12px;
+      padding: 14px 14px 12px;
+    }
+    .summary-title { font-size: .8rem; color: rgba(0,0,0,0.55); margin-bottom: 6px; }
+    .summary-value { font-size: 1.5rem; font-weight: 700; color: rgba(0,0,0,0.88); }
+    .summary-sub { margin-top: 10px; color: rgba(0,0,0,0.55); font-size: .85rem; }
+    .summary-sub strong { color: rgba(0,0,0,0.88); }
+    @media (max-width: 1024px) {
+      .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 768px) {
+      .upload-section { grid-template-columns: 1fr; gap: 18px; }
+      .tabs { flex-direction: column; }
+      .tab-content { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📊 Accessory QC Tool</h1>
+      <p>Offering&Facet 数据校验 / Country 数据校验</p>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('offering-facet', this)">Offering&Facet数据校验</button>
+      <button class="tab" onclick="switchTab('country-qc', this)">Country数据校验</button>
+    </div>
+
+    <div id="offering-facet" class="tab-content active">
+      <div class="upload-section">
+        <div class="upload-box">
+          <h3>📋 基准表 (IAL Document)</h3>
+          <input type="file" id="fileIAL" accept=".xlsx,.xlsm,.xls" />
+          <p>需要包含：Pn level / PN_VirtualCategory / PN_Audience / PN_Facets / IAL Contact & Comments</p>
+          <div id="fileIALInfo" class="file-info" style="display:none;"></div>
+        </div>
+        <div class="upload-box">
+          <h3>🔍 数据表 (Offering & Facet文件)</h3>
+          <input type="file" id="fileOffering" accept=".xlsx,.xlsm,.xls" />
+          <p>需要包含：OPTSVC_MMR</p>
+          <div id="fileOfferingInfo" class="file-info" style="display:none;"></div>
+        </div>
+      </div>
+
+      <button class="check-button" id="checkBtnOfferingFacet" onclick="performOfferingFacetQC()" disabled>
+        开始校验
+      </button>
+
+      <div id="offeringFacetResults" class="results">
+        <h3>🔎 Offering&Facet 校验结果</h3>
+        <div id="offeringFacetCheckResults"></div>
+        <div id="offeringFacetSummary" class="summary"></div>
+      </div>
+    </div>
+
+    <div id="country-qc" class="tab-content">
+      <div class="upload-section">
+        <div class="upload-box">
+          <h3>📋 基准表 (IAL Document)</h3>
+          <input type="file" id="fileIALCountry" accept=".xlsx,.xlsm,.xls" />
+          <p>需要包含：PN-Country view and Region</p>
+          <div id="fileIALCountryInfo" class="file-info" style="display:none;"></div>
+          <div style="margin-top:8px;color:rgba(0,0,0,0.45);font-size:.85rem;">
+            如果你已在第一个标签页上传过 IAL，这里可以不再上传。
+          </div>
+        </div>
+        <div class="upload-box">
+          <h3>🌎 数据表 (CountryObjLink)</h3>
+          <input type="file" id="fileCountryObjLink" accept=".xlsx,.xlsm,.xls" />
+          <p>需要包含：<code> Country-Obj</code> 工作表，x 表示该国家可售</p>
+          <div id="fileCountryObjLinkInfo" class="file-info" style="display:none;"></div>
+        </div>
+      </div>
+
+      <button class="check-button" id="checkBtnCountry" onclick="performCountryLinkQC()" disabled>
+        开始 CountryLink 校验
+      </button>
+
+      <div id="countryResults" class="results">
+        <h3>🔎 CountryLink 校验结果</h3>
+        <div id="countryCheckResults"></div>
+        <div id="countrySummary" class="summary"></div>
+      </div>
+    </div>
+
+    <div id="errorMessage" class="error-message"></div>
+  </div>
+
+  <script>
+    // ===== Global state =====
+    let ialWb = null;
+    let offeringWb = null;
+    let countryLinkWb = null;
+
+    // ===== Global error visibility (avoid silent failures) =====
+    window.addEventListener('error', (e) => {
+      try {
+        const msg = e?.message || '未知脚本错误';
+        showError(`页面脚本错误: ${msg}`);
+      } catch (_) {}
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      try {
+        const msg = e?.reason?.message || String(e?.reason || '未知Promise错误');
+        showError(`页面Promise错误: ${msg}`);
+      } catch (_) {}
+    });
+
+    // If XLSX fails to load (e.g., CDN blocked), make it obvious.
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof XLSX === 'undefined') {
+        showError('无法加载 XLSX 库：请确认网络可访问 cdnjs，或改为本地引入 xlsx.full.min.js（否则无法解析Excel，按钮会一直不可点）。');
+      }
+    });
+
+    // ===== UI helpers =====
+    function switchTab(tabId, element) {
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      element.classList.add('active');
+      hideError();
+    }
+
+    function showError(message) {
+      const div = document.getElementById('errorMessage');
+      div.textContent = message;
+      div.style.display = 'block';
+    }
+    function hideError() {
+      const div = document.getElementById('errorMessage');
+      div.style.display = 'none';
+      div.textContent = '';
+    }
+
+    function readWorkbookFromFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            if (typeof XLSX === 'undefined') {
+              reject(new Error('XLSX库未加载（无法解析Excel）'));
+              return;
+            }
+            const data = new Uint8Array(e.target.result);
+            const wb = XLSX.read(data, { type: 'array' });
+            resolve(wb);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = () => reject(new Error('读取文件失败'));
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function setFileInfo(divId, file, wb) {
+      const div = document.getElementById(divId);
+      div.style.display = 'block';
+      div.innerHTML = `
+        <strong>文件名:</strong> ${file.name}<br>
+        <strong>工作表:</strong> ${wb.SheetNames.join(', ')}<br>
+        <strong>状态:</strong> ✅ 已加载
+      `;
+    }
+
+    function updateOfferingFacetButtonState() {
+      document.getElementById('checkBtnOfferingFacet').disabled = !(ialWb && offeringWb);
+    }
+    function updateCountryButtonState() {
+      const btn = document.getElementById('checkBtnCountry');
+      if (!btn) return;
+      btn.disabled = !(ialWb && countryLinkWb);
+    }
+
+    // ===== Normalization helpers =====
+    function normalizeText(v) {
+      if (v === null || v === undefined) return '';
+      return String(v).trim();
+    }
+
+    function normalizeDate(value) {
+      if (value === null || value === undefined || value === '') return '';
+      // Excel date serial number
+      if (typeof value === 'number' && value > 25000 && value < 100000) {
+        try {
+          const d = XLSX.SSF.parse_date_code(value);
+          return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+        } catch (e) {
+          return String(value);
+        }
+      }
+      const s = String(value).trim();
+      // MM/DD/YYYY or M/D/YYYY
+      let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (m) return `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
+      // MM/DD/YY or M/D/YY (assume 20YY)
+      m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+      if (m) {
+        const yy = parseInt(m[3], 10);
+        const yyyy = 2000 + yy;
+        return `${yyyy}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
+      }
+      // YYYY-MM-DD or YYYY/M/D
+      m = s.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+      if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+      return s;
+    }
+
+    function normalizeList(v) {
+      // split by comma, slash, semicolon; trim; remove empties
+      const s = normalizeText(v);
+      if (!s) return [];
+      return s.split(/[;,\/\n]+|\s*,\s*/).map(x => x.trim()).filter(Boolean);
+    }
+
+    function sameListAsSet(a, b, opts = {}) {
+      const norm = (x) => {
+        let s = String(x).trim();
+        if (opts.upper) s = s.toUpperCase();
+        return s;
+      };
+      const sa = new Set(a.map(norm).filter(Boolean));
+      const sb = new Set(b.map(norm).filter(Boolean));
+      if (sa.size !== sb.size) return false;
+      for (const x of sa) if (!sb.has(x)) return false;
+      return true;
+    }
+
+    // Prefer formatted text if present (keeps leading zeros in some cases)
+    function getCellText(sheet, addr) {
+      const cell = sheet ? sheet[addr] : null;
+      if (!cell) return '';
+      if (cell.w !== undefined && cell.w !== null && String(cell.w).trim() !== '') return String(cell.w).trim();
+      if (cell.v !== undefined && cell.v !== null) return String(cell.v).trim();
+      return '';
+    }
+
+    // Some xlsm/xlsx files have incorrect sheet['!ref'] / <dimension ref="..."> (too small).
+    // SheetJS relies on !ref for decode_range, which can truncate parsing.
+    // This computes a safe effective range by scanning actual cell addresses.
+    function getEffectiveRange(sheet, fallbackRef = 'A1:Z20000') {
+      try {
+        let minR = Infinity, minC = Infinity, maxR = -1, maxC = -1;
+        const keys = Object.keys(sheet || {});
+        for (const k of keys) {
+          if (!/^[A-Z]+[0-9]+$/.test(k)) continue;
+          const pos = XLSX.utils.decode_cell(k);
+          if (pos.r < minR) minR = pos.r;
+          if (pos.c < minC) minC = pos.c;
+          if (pos.r > maxR) maxR = pos.r;
+          if (pos.c > maxC) maxC = pos.c;
+        }
+        if (maxR >= 0 && maxC >= 0 && minR !== Infinity && minC !== Infinity) {
+          return { s: { r: minR, c: minC }, e: { r: maxR, c: maxC } };
+        }
+      } catch (_) {}
+      return XLSX.utils.decode_range((sheet && sheet['!ref']) ? sheet['!ref'] : fallbackRef);
+    }
+
+    function normalizeFacetValue(value) {
+      // Make comparisons robust across line breaks / spacing differences
+      const s = normalizeText(value);
+      if (!s) return '';
+      const unified = s.replace(/\r\n/g, '\n');
+      // Split by semicolons/newlines, drop empty tokens to avoid creating "; ;"
+      const tokens = unified
+        .replace(/\n+/g, ';')
+        .split(';')
+        .map(t => t.replace(/\s+/g, ' ').trim())
+        .filter(t => t.length > 0);
+      return tokens.join('; ');
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatListPreview(items, limit = 60) {
+      const list = (items || []).slice().map(x => normalizeText(x)).filter(Boolean);
+      const shown = list.slice(0, limit).map(escapeHtml);
+      const suffix = list.length > limit ? `\n... +${list.length - limit} more` : '';
+      return shown.join(', ') + suffix;
+    }
+
+    function formatKVPreview(mapLike, limit = 80) {
+      const entries = [];
+      if (!mapLike) return '';
+      if (mapLike instanceof Map) {
+        for (const [k, v] of mapLike.entries()) entries.push([k, v]);
+      } else {
+        for (const k of Object.keys(mapLike)) entries.push([k, mapLike[k]]);
+      }
+      entries.sort((a,b) => String(a[0]).localeCompare(String(b[0])));
+      const shown = entries.slice(0, limit);
+      const lines = shown.map(([k,v]) => `${escapeHtml(k)}: ${escapeHtml(normalizeFacetValue(v))}`);
+      if (entries.length > limit) lines.push(`... +${entries.length - limit} more`);
+      return lines.join('\n');
+    }
+
+    function isTruthyMark(value) {
+      const s = normalizeText(value);
+      if (!s) return false;
+      // Accept common marks: x/X, Greek chi (Χ/χ) used in some IAL files, multiplication sign ×, checkmarks.
+      // Also accept A/1/yes/true.
+      const t = s.normalize('NFKC').trim().toLowerCase();
+      return (
+        t === 'x' ||
+        t === 'a' ||
+        t === 'yes' ||
+        t === '1' ||
+        t === 'true' ||
+        t === 'χ' || // greek chi
+        t === '×' || // multiplication sign
+        t === '✓' ||
+        t === '✔'
+      );
+    }
+
+    // ===== Extractors (baseline: IAL) =====
+    function buildPnLevelMap(sheetPnLevel) {
+      // Robust header-based parsing:
+      // - Find the header row containing "Offering PN"
+      // - For Product Title, prefer the column whose owner row is "PM" and header is "Product Title"
+      //   (This fixes Invoice Description source for IAL87631 where Product Title is in column N, owner=PM.)
+      const range = getEffectiveRange(sheetPnLevel, 'A1:ZZ5000');
+
+      let headerRow = null;
+      let pnCol = null;
+      const maxHeaderScanR = Math.min(range.e.r, 200);
+      const maxHeaderScanC = Math.min(range.e.c, 400);
+      for (let r = range.s.r; r <= maxHeaderScanR; r++) {
+        for (let c = range.s.c; c <= maxHeaderScanC; c++) {
+          const v = getCellText(sheetPnLevel, XLSX.utils.encode_cell({ r, c }));
+          if (v === 'Offering PN') {
+            headerRow = r;
+            pnCol = c;
+            break;
+          }
+        }
+        if (headerRow !== null) break;
+      }
+      // fallback to legacy template positions (row 8, col C)
+      if (headerRow === null) headerRow = 7; // 0-based => Excel row 8
+      if (pnCol === null) pnCol = XLSX.utils.decode_col('C');
+      const ownerRow = headerRow > 0 ? headerRow - 1 : null;
+
+      const findCol = (headerPredicate, ownerPredicate = null) => {
+        for (let c = range.s.c; c <= range.e.c; c++) {
+          const header = getCellText(sheetPnLevel, XLSX.utils.encode_cell({ r: headerRow, c }));
+          if (!headerPredicate(header)) continue;
+          if (ownerPredicate && ownerRow !== null) {
+            const owner = getCellText(sheetPnLevel, XLSX.utils.encode_cell({ r: ownerRow, c }));
+            if (!ownerPredicate(owner)) continue;
+          }
+          return c;
+        }
+        return null;
+      };
+
+      const eqi = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+      const containsI = (a, needle) => String(a || '').toLowerCase().includes(String(needle || '').toLowerCase());
+      const ownerIsPM = (owner) => String(owner || '').trim().toUpperCase().startsWith('PM');
+
+      // Product Title: PM column preferred; else any Product Title; else legacy "Description"
+      const titleCol =
+        findCol(h => eqi(h, 'Product Title'), ownerIsPM) ??
+        findCol(h => eqi(h, 'Product Title')) ??
+        findCol(h => eqi(h, 'Description')) ??
+        XLSX.utils.decode_col('D');
+
+      const eowCol =
+        findCol(h => containsI(h, 'Early Order Window') || containsI(h, '(EOW)')) ??
+        XLSX.utils.decode_col('F');
+      const adCol =
+        findCol(h => containsI(h, 'Announcement Date') || containsI(h, '(AD)')) ??
+        XLSX.utils.decode_col('G');
+      const gaCol =
+        findCol(h => containsI(h, 'Planned Availability') || containsI(h, '(GA)') || containsI(h, 'General Availability')) ??
+        XLSX.utils.decode_col('H');
+      const l1Col =
+        findCol(h => containsI(h, 'L1 Category')) ??
+        XLSX.utils.decode_col('I');
+      const l2Col =
+        findCol(h => containsI(h, 'L2 Category')) ??
+        XLSX.utils.decode_col('J');
+      const productHierarchyCol =
+        findCol(h => eqi(h, 'Product Hierarchy')) ??
+        XLSX.utils.decode_col('K');
+      const supportedOSCol =
+        findCol(h => eqi(h, 'Supported Operating Systems')) ??
+        XLSX.utils.decode_col('L');
+
+      const map = new Map();
+      let emptyStreak = 0;
+      for (let r = headerRow + 1; r <= Math.min(range.e.r, 50000); r++) {
+        const pn = normalizeText(getCellText(sheetPnLevel, XLSX.utils.encode_cell({ r, c: pnCol })));
+        const marker = normalizeText(getCellText(sheetPnLevel, XLSX.utils.encode_cell({ r, c: range.s.c })));
+        if (marker === '#EOF') break;
+
+        if (!pn) {
+          emptyStreak++;
+          if (emptyStreak >= 50) break;
+          continue;
+        }
+        emptyStreak = 0;
+
+        map.set(pn, {
+          pn,
+          productTitle: normalizeText(getCellText(sheetPnLevel, XLSX.utils.encode_cell({ r, c: titleCol }))),
+          eow: normalizeDate(getCellText(sheetPnLevel, XLSX.utils.encode_cell({ r, c: eowCol }))),
+          ad: normalizeDate(getCellText(sheetPnLevel, XLSX.utils.encode_cell({ r, c: adCol }))),
+          ga: normalizeDate(getCellText(sheetPnLevel, XLSX.utils.encode_cell({ r, c: gaCol }))),
+          l1: normalizeText(getCellText(sheetPnLevel, XLSX.utils.encode_cell({ r, c: l1Col }))),
+          l2: normalizeText(getCellText(sheetPnLevel, XLSX.utils.encode_cell({ r, c: l2Col }))),
+          productHierarchy: normalizeText(getCellText(sheetPnLevel, XLSX.utils.encode_cell({ r, c: productHierarchyCol }))),
+          supportedOS: normalizeText(getCellText(sheetPnLevel, XLSX.utils.encode_cell({ r, c: supportedOSCol }))),
+          row: r + 1 // 1-based row number for display
+        });
+      }
+      return map;
+    }
+
+    function buildVirtualCategoryMap(sheetVC) {
+      // header row 4; data starts row 5
+      const map = new Map();
+      let row = 5;
+      while (row < 5000) {
+        const pn = normalizeText(sheetVC[`B${row}`]?.v);
+        const marker = normalizeText(sheetVC[`A${row}`]?.v);
+        if (!pn) break;
+        if (marker === '#EOF') break;
+        const virt = [];
+        for (const col of ['C','D','E','F','G','H','I','J']) {
+          const v = normalizeText(sheetVC[`${col}${row}`]?.v);
+          if (v) virt.push(v);
+        }
+        map.set(pn, { pn, virtCats: virt, row });
+        row++;
+      }
+      return map;
+    }
+
+    function getContactManagers(sheetContact) {
+      // Find labels and read right-adjacent cell; fallback empty if not found.
+      // In sample: B11=Product Development Manager -> C11, B12=Product Marketing Manager -> C12
+      const range = XLSX.utils.decode_range(sheetContact['!ref'] || 'A1:Z200');
+      const get = (addr) => normalizeText(sheetContact[addr]?.v);
+      const findLabel = (label) => {
+        for (let r = range.s.r; r <= Math.min(range.e.r, 300); r++) {
+          for (let c = range.s.c; c <= Math.min(range.e.c, 50); c++) {
+            const addr = XLSX.utils.encode_cell({ r, c });
+            if (get(addr) === label) return { r, c, addr };
+          }
+        }
+        return null;
+      };
+      const pmCell = findLabel('Product Marketing Manager');
+      const devCell = findLabel('Product Development Manager');
+      const pm = pmCell ? get(XLSX.utils.encode_cell({ r: pmCell.r, c: pmCell.c + 1 })) : '';
+      const dev = devCell ? get(XLSX.utils.encode_cell({ r: devCell.r, c: devCell.c + 1 })) : '';
+      return { productMarketingManager: pm, productDevelopmentManager: dev };
+    }
+
+    function buildAudienceMap(sheetPNAud) {
+      // header row 4: B=Offering PN, C=Public Web, D=BP, E=LE, ...
+      // data starts row 5: non-empty cell means this audience applies.
+      const headerRow = 4;
+      const headers = [];
+      // we scan C..Z for audience columns
+      for (let col = 3; col <= 26; col++) {
+        const colLetter = XLSX.utils.encode_col(col - 1); // 0-based
+        const v = normalizeText(sheetPNAud[`${colLetter}${headerRow}`]?.v);
+        if (!v) continue;
+        const header = v.split(/\\r?\\n/)[0].trim(); // Public Web -> keep first line
+        headers.push({ colLetter, header });
+      }
+      // find PN column in header row (usually B)
+      const pnColLetter = 'B';
+      const map = new Map();
+      // Non-CTO map 不作为基准对比；只要求 Public/BP/LE 这三项在数据表Audience中“被包含”。
+      const requiredAudienceSet = new Set(['public', 'bp', 'le']);
+      let row = 5;
+      while (row < 5000) {
+        const pn = normalizeText(sheetPNAud[`${pnColLetter}${row}`]?.v);
+        const marker = normalizeText(sheetPNAud[`A${row}`]?.v);
+        if (!pn) {
+          // PN_Audience has many #N/A rows; stop when we hit #N/A area
+          if (marker === '#N/A') break;
+          row++;
+          continue;
+        }
+        const audiences = [];
+        headers.forEach(h => {
+          const cell = normalizeText(sheetPNAud[`${h.colLetter}${row}`]?.v);
+          if (cell) {
+            let name = h.header;
+            if (name.toLowerCase().startsWith('public')) name = 'Public';
+            if (requiredAudienceSet.has(String(name).toLowerCase())) {
+              audiences.push(name);
+            }
+          }
+        });
+        map.set(pn, { pn, audiences, row });
+        row++;
+      }
+      return map;
+    }
+
+    // ===== Facet extraction =====
+    function buildIALPnFacetsMap(sheetPnFacets) {
+      // PN_Facets is horizontal: one row contains facet names, one row contains "Offering PN",
+      // then each subsequent row is a PN with facet values across columns.
+      const range = getEffectiveRange(sheetPnFacets, 'A1:Z2000');
+      const findCellByPredicate = (predicate) => {
+        for (let r = range.s.r; r <= range.e.r; r++) {
+          for (let c = range.s.c; c <= range.e.c; c++) {
+            const addr = XLSX.utils.encode_cell({ r, c });
+            const text = getCellText(sheetPnFacets, addr);
+            if (predicate(text)) return { r, c, addr, text };
+          }
+        }
+        return null;
+      };
+
+      // In real IAL files, the anchor cell may contain multiple lines such as:
+      // "FacetName -->\n\nOffering PN"
+      const facetNameAnchor = findCellByPredicate((t) => String(t || '').toLowerCase().includes('facetname'));
+      if (!facetNameAnchor) {
+        throw new Error('IAL PN_Facets 中未找到包含 "FacetName" 的锚点单元格');
+      }
+
+      // In your sample layout:
+      // - anchor cell is in column B row 9
+      // - PN is in the SAME column (B) starting from next row
+      // - facet names start from column C on the same row
+      const pnCol = facetNameAnchor.c;
+      const pnStartRow = facetNameAnchor.r + 1;
+
+      // Build facet columns map: col -> facetName
+      const facetCols = [];
+      // Don't stop on first empty cell; some sheets have sparse/incorrect ref.
+      // Collect all non-empty headers to the right of PN column.
+      for (let c = pnCol + 1; c <= range.e.c; c++) {
+        const addr = XLSX.utils.encode_cell({ r: facetNameAnchor.r, c });
+        const name = getCellText(sheetPnFacets, addr);
+        if (!name) continue;
+        facetCols.push({ c, name });
+      }
+      if (!facetCols.length) {
+        throw new Error('IAL PN_Facets 未解析到任何 FacetName 列');
+      }
+
+      const pnToFacets = new Map();
+      for (let r = pnStartRow; r <= range.e.r; r++) {
+        const pnAddr = XLSX.utils.encode_cell({ r, c: pnCol });
+        const pn = getCellText(sheetPnFacets, pnAddr);
+        if (!pn) break;
+        if (pn.toUpperCase() === '#EOF' || pn.toUpperCase() === '#N/A') break;
+        const facets = new Map();
+        facetCols.forEach(fc => {
+          const vAddr = XLSX.utils.encode_cell({ r, c: fc.c });
+          const v = getCellText(sheetPnFacets, vAddr);
+          // Include empty values too, so that a blank facet in baseline
+          // does not show up as an "extra" facet in FACETLINK.
+          facets.set(fc.name, v === '' ? '' : v);
+        });
+        pnToFacets.set(pn, facets);
+      }
+      return pnToFacets;
+    }
+
+    function buildFacetLinkMap(sheetFacetLink) {
+      // FACETLINK is vertical: header row 4, data starts row 5
+      const headerRow = 4;
+      const range = getEffectiveRange(sheetFacetLink, 'A1:Z20000');
+      const cols = {};
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const addr = XLSX.utils.encode_cell({ r: headerRow - 1, c });
+        const header = getCellText(sheetFacetLink, addr);
+        if (!header) continue;
+        cols[header] = c;
+      }
+      const required = ['Part Number', 'Facet Name', 'Facet Value'];
+      const missing = required.filter(h => cols[h] === undefined);
+      if (missing.length) {
+        throw new Error(`FACETLINK表头缺失列: ${missing.join(', ')}`);
+      }
+      const pnToFacets = new Map();
+      const duplicates = [];
+      let emptyStreak = 0;
+      for (let r = headerRow; r <= Math.min(range.e.r, 50000); r++) {
+        const actionAddr = XLSX.utils.encode_cell({ r, c: cols['Action'] ?? 0 });
+        const action = getCellText(sheetFacetLink, actionAddr).toLowerCase();
+        if (action === '#eof') break;
+        // ignore delete rows
+        if (action === 'delete' || action === 'd') continue;
+
+        const pn = getCellText(sheetFacetLink, XLSX.utils.encode_cell({ r, c: cols['Part Number'] }));
+        const fname = getCellText(sheetFacetLink, XLSX.utils.encode_cell({ r, c: cols['Facet Name'] }));
+        const fval = getCellText(sheetFacetLink, XLSX.utils.encode_cell({ r, c: cols['Facet Value'] }));
+        // Some files may contain blank/separator rows. Do NOT stop parsing on the first blank PN.
+        // Only stop when we see a long streak of fully-empty rows.
+        if (!pn && !fname && !fval && !action) {
+          emptyStreak++;
+          if (emptyStreak >= 50) break;
+          continue;
+        }
+        emptyStreak = 0;
+
+        if (!pn) continue;
+        if (!fname) continue;
+
+        if (!pnToFacets.has(pn)) pnToFacets.set(pn, new Map());
+        const m = pnToFacets.get(pn);
+        if (m.has(fname) && m.get(fname) !== fval) {
+          duplicates.push({ pn, fname, prev: m.get(fname), next: fval, row: r + 1 });
+        }
+        m.set(fname, fval);
+      }
+      return { pnToFacets, duplicates };
+    }
+
+    // ===== CountryLink parsing =====
+    function buildCountryObjLinkMap(sheetCountryObj) {
+      // Sheet name in file is often " Country-Obj"
+      // Row6: B=Country Name, C=Country Code, D.. = PN[Desc], and one cell '#EOF' indicates end of PN headers
+      const range = getEffectiveRange(sheetCountryObj, 'A1:ZZ20000');
+      const headerRow = 6;
+
+      let countryCodeCol = null;
+      let eofCol = null;
+      const pnCols = [];
+
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const addr = XLSX.utils.encode_cell({ r: headerRow - 1, c });
+        const v = getCellText(sheetCountryObj, addr);
+        if (v === '#EOF') {
+          eofCol = c;
+          break;
+        }
+        if (v === 'Country Code') countryCodeCol = c;
+        // PN headers look like "4XH1U87485[xxx]"
+        const m = v.match(/^([A-Z0-9]{8,})\[/);
+        if (m) pnCols.push({ c, pn: m[1] });
+      }
+      if (countryCodeCol === null) {
+        // fallback: typical template uses column C
+        countryCodeCol = XLSX.utils.decode_col('C');
+      }
+      if (!pnCols.length) throw new Error('CountryObjLink 未找到任何 PN 列（表头形如 4XH1U87485[xxx]）');
+
+      const pnToCountries = new Map();
+      pnCols.forEach(p => pnToCountries.set(p.pn, new Set()));
+
+      let emptyStreak = 0;
+      for (let r = headerRow; r <= Math.min(range.e.r, 50000); r++) {
+        const code = getCellText(sheetCountryObj, XLSX.utils.encode_cell({ r, c: countryCodeCol }));
+        if (!code) {
+          emptyStreak++;
+          if (emptyStreak >= 50) break;
+          continue;
+        }
+        emptyStreak = 0;
+        if (code === '#EOF') break;
+
+        pnCols.forEach(p => {
+          const mark = getCellText(sheetCountryObj, XLSX.utils.encode_cell({ r, c: p.c }));
+          if (isTruthyMark(mark)) pnToCountries.get(p.pn).add(code);
+        });
+      }
+      return pnToCountries;
+    }
+
+    function buildIALPublicCountryMap(sheetPnCountry) {
+      // In sample:
+      // E1 = "PUBLIC audience ..." (title)
+      // Row3: C=Geo, D=Country/Region (name), E=Country/Region (code), F.. = PN columns
+      const range = getEffectiveRange(sheetPnCountry, 'A1:ZZ20000');
+
+      // find PUBLIC audience cell
+      let publicCell = null;
+      for (let r = range.s.r; r <= Math.min(range.e.r, 200); r++) {
+        for (let c = range.s.c; c <= Math.min(range.e.c, 200); c++) {
+          const v = getCellText(sheetPnCountry, XLSX.utils.encode_cell({ r, c }));
+          const s = v.toLowerCase();
+          if (s.includes('public') && s.includes('audience')) {
+            publicCell = { r, c };
+            break;
+          }
+        }
+        if (publicCell) break;
+      }
+      if (!publicCell) throw new Error('IAL 中未找到 PUBLIC audience 标题（PN-Country view and Region）');
+
+      // find header row below public title: must contain "Geo" and two "Country/Region"
+      let headerRow = null;
+      for (let r = publicCell.r; r <= Math.min(publicCell.r + 20, range.e.r); r++) {
+        const geo = getCellText(sheetPnCountry, XLSX.utils.encode_cell({ r, c: XLSX.utils.decode_col('C') }));
+        if (geo === 'Geo') { headerRow = r; break; }
+      }
+      if (headerRow === null) throw new Error('IAL PUBLIC 区域未找到表头行（Geo）');
+
+      const geoCol = XLSX.utils.decode_col('C');
+      const nameCol = XLSX.utils.decode_col('D');
+      const codeCol = XLSX.utils.decode_col('E');
+
+      // PN columns start from codeCol+1, collect all non-empty PN-like headers in this row
+      const pnCols = [];
+      for (let c = codeCol + 1; c <= range.e.c; c++) {
+        const v = getCellText(sheetPnCountry, XLSX.utils.encode_cell({ r: headerRow, c }));
+        if (!v) continue;
+        if (/^[A-Z0-9]{8,}$/.test(v)) pnCols.push({ c, pn: v });
+      }
+      if (!pnCols.length) throw new Error('IAL PUBLIC 区域未找到 PN 列（表头应为 PN，如 4XH1U87485）');
+
+      const pnToCountries = new Map();
+      pnCols.forEach(p => pnToCountries.set(p.pn, new Set()));
+
+      let emptyStreak = 0;
+      for (let r = headerRow + 1; r <= Math.min(range.e.r, 50000); r++) {
+        const code = getCellText(sheetPnCountry, XLSX.utils.encode_cell({ r, c: codeCol }));
+        const geo = getCellText(sheetPnCountry, XLSX.utils.encode_cell({ r, c: geoCol }));
+        const name = getCellText(sheetPnCountry, XLSX.utils.encode_cell({ r, c: nameCol }));
+
+        if (!code && !geo && !name) {
+          emptyStreak++;
+          if (emptyStreak >= 50) break;
+          continue;
+        }
+        emptyStreak = 0;
+
+        // stop if we reached another audience block title (non-PUBLIC)
+        const nameLower = String(name || '').toLowerCase();
+        if (nameLower.includes('audience') && !nameLower.includes('public')) break;
+
+        if (!code) continue;
+        pnCols.forEach(p => {
+          const mark = getCellText(sheetPnCountry, XLSX.utils.encode_cell({ r, c: p.c }));
+          if (isTruthyMark(mark)) pnToCountries.get(p.pn).add(code);
+        });
+      }
+      return pnToCountries;
+    }
+
+    function performCountryLinkQC() {
+      try {
+        hideError();
+        if (!ialWb) throw new Error('请先上传 IAL Document');
+        if (!countryLinkWb) throw new Error('请先上传 CountryObjLink 数据表');
+        if (!ialWb.SheetNames.includes('PN-Country view and Region')) throw new Error('IAL 缺少工作表: PN-Country view and Region');
+
+        const countrySheetName = countryLinkWb.SheetNames.find(n => n.trim() === 'Country-Obj') || countryLinkWb.SheetNames.find(n => n.toLowerCase().includes('country') && n.toLowerCase().includes('obj'));
+        if (!countrySheetName) throw new Error('CountryObjLink 文件中未找到工作表: Country-Obj');
+
+        const baselineMap = buildIALPublicCountryMap(ialWb.Sheets['PN-Country view and Region']);
+        const dataMap = buildCountryObjLinkMap(countryLinkWb.Sheets[countrySheetName]);
+
+        const pns = Array.from(new Set([...baselineMap.keys(), ...dataMap.keys()])).sort();
+        if (!pns.length) throw new Error('未解析到任何 PN');
+
+        const results = [];
+        let pnPass = 0, pnFail = 0, pnWarn = 0;
+
+        pns.forEach(pn => {
+          const baseSet = baselineMap.get(pn);
+          const dataSet = dataMap.get(pn);
+          if (!baseSet && !dataSet) {
+            pnWarn++;
+            results.push({ pn, status: 'warn', message: '两边都未找到该PN', baseCount: 0, dataCount: 0, missing: [], extra: [], baseCountries: [], dataCountries: [] });
+            return;
+          }
+          if (!baseSet) {
+            pnFail++;
+            const dataCountries = dataSet ? [...dataSet].sort() : [];
+            results.push({ pn, status: 'fail', message: 'IAL PUBLIC 中未找到该PN列', baseCount: 0, dataCount: dataSet.size, missing: [], extra: [], baseCountries: [], dataCountries });
+            return;
+          }
+          if (!dataSet) {
+            pnFail++;
+            const baseCountries = baseSet ? [...baseSet].sort() : [];
+            results.push({ pn, status: 'fail', message: 'CountryObjLink 中未找到该PN列', baseCount: baseSet.size, dataCount: 0, missing: [], extra: [], baseCountries, dataCountries: [] });
+            return;
+          }
+
+          const missing = [...baseSet].filter(x => !dataSet.has(x));
+          const extra = [...dataSet].filter(x => !baseSet.has(x));
+          const baseCountries = [...baseSet].sort();
+          const dataCountries = [...dataSet].sort();
+          if (missing.length === 0 && extra.length === 0) {
+            pnPass++;
+            results.push({ pn, status: 'pass', message: `一致（国家数 ${baseSet.size}）`, baseCount: baseSet.size, dataCount: dataSet.size, missing: [], extra: [], baseCountries, dataCountries });
+          } else {
+            pnFail++;
+            const parts = [];
+            if (missing.length) parts.push(`缺失${missing.length}: ${missing.slice(0,10).join(', ')}${missing.length>10?'...':''}`);
+            if (extra.length) parts.push(`多出${extra.length}: ${extra.slice(0,10).join(', ')}${extra.length>10?'...':''}`);
+            results.push({ pn, status: 'fail', message: parts.join(' | '), baseCount: baseSet.size, dataCount: dataSet.size, missing, extra, baseCountries, dataCountries });
+          }
+        });
+
+        displayCountryResults(results, pnPass, pnWarn, pnFail);
+      } catch (err) {
+        showError(`校验过程出错: ${err.message}`);
+        console.error(err);
+      }
+    }
+
+    function displayCountryResults(results, pnPass, pnWarn, pnFail) {
+      const resultsDiv = document.getElementById('countryResults');
+      const container = document.getElementById('countryCheckResults');
+      const summaryDiv = document.getElementById('countrySummary');
+      container.innerHTML = '';
+
+      const totalInfoDiv = document.createElement('div');
+      totalInfoDiv.style.cssText = 'background:#e6f4ff;border:1px solid #91caff;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-weight:600;';
+      totalInfoDiv.innerHTML = `<div>共检验 <strong>${results.length}</strong> 个 PN（PUBLIC）</div>`;
+      container.appendChild(totalInfoDiv);
+
+      results.forEach((r, idx) => {
+        const group = document.createElement('div');
+        group.style.cssText = 'margin-bottom:18px;border:1px solid #f0f0f0;border-radius:12px;padding:14px;background:#fff;';
+        const statusClass = r.status === 'pass' ? 'pass' : (r.status === 'warn' ? 'warn' : 'fail');
+        const statusText = r.status === 'pass' ? 'PASS' : (r.status === 'warn' ? '需手动' : 'FAIL');
+
+        group.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;">
+            <div style="font-weight:600;">PN ${idx + 1}: ${r.pn}</div>
+            <div class="status ${statusClass}">${statusText}</div>
+          </div>
+          <div style="color:rgba(0,0,0,0.65);font-size:.9rem;">
+            基准(IAL PUBLIC): ${r.baseCount} 个国家 ｜ 数据(CountryObjLink): ${r.dataCount} 个国家
+            ${r.message ? `<br><small style=\"color:${r.status==='pass'?'#389e0d':(r.status==='warn'?'#d46b08':'#cf1322')};\">${r.message}</small>` : ''}
+            <details class="qc-details">
+              <summary>展开查看基准/数据国家码</summary>
+              <div class="diff-line">
+                <span class="diff-badge">缺失</span>${formatListPreview(r.missing || [], 60) || '(无)'}
+              </div>
+              <div class="diff-line">
+                <span class="diff-badge">多出</span>${formatListPreview(r.extra || [], 60) || '(无)'}
+              </div>
+              <div class="kv-grid">
+                <div class="kv-box">
+                  <div class="kv-box-title">基准 IAL PUBLIC（${r.baseCount}）</div>
+                  <div class="kv-pre">${formatListPreview(r.baseCountries || [], 500) || '(空)'}</div>
+                </div>
+                <div class="kv-box">
+                  <div class="kv-box-title">数据 CountryObjLink（${r.dataCount}）</div>
+                  <div class="kv-pre">${formatListPreview(r.dataCountries || [], 500) || '(空)'}</div>
+                </div>
+              </div>
+            </details>
+          </div>
+        `;
+        container.appendChild(group);
+      });
+
+      const totalPn = results.length;
+      summaryDiv.innerHTML = `
+        <div class="summary-grid">
+          <div class="summary-card"><div class="summary-title">总PN数</div><div class="summary-value">${totalPn}</div></div>
+          <div class="summary-card"><div class="summary-title">完全一致</div><div class="summary-value" style="color:#389e0d;">${pnPass}</div></div>
+          <div class="summary-card"><div class="summary-title">需手动</div><div class="summary-value" style="color:#d46b08;">${pnWarn}</div></div>
+          <div class="summary-card"><div class="summary-title">存在差异</div><div class="summary-value" style="color:#cf1322;">${pnFail}</div></div>
+          <div class="summary-card"><div class="summary-title">说明</div><div class="summary-value" style="font-size:1rem;font-weight:600;">PUBLIC</div></div>
+        </div>
+      `;
+
+      resultsDiv.style.display = 'block';
+      resultsDiv.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ===== Extractors (data: OPTSVC_MMR) =====
+    function parseOptSvcMMR(sheet) {
+      // header row is 6; data starts at 7 until Action == #EOF OR Part Number empty
+      const headerRow = 6;
+      const cols = {};
+      const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1:BB2000');
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const addr = XLSX.utils.encode_cell({ r: headerRow - 1, c });
+        const header = normalizeText(sheet[addr]?.v);
+        if (!header) continue;
+        cols[header] = c;
+      }
+      const required = [
+        'Part Number',
+        'Marketing Description',
+        'Invoice Description',
+        'Categorization Level 1',
+        'Categorization Level 2',
+        'Solution Category',
+        'Mkt Rep',
+        'Option Developer',
+        'Supported Operating Systems',
+        'Audience',
+        'Early Order Window',
+        'Announce Date',
+        'General Availability Date',
+        'WW LinkID'
+      ];
+      const missing = required.filter(h => cols[h] === undefined);
+      if (missing.length) {
+        throw new Error(`OPTSVC_MMR表头缺失列: ${missing.join(', ')}`);
+      }
+      const getCell = (r, header) => {
+        const c = cols[header];
+        const addr = XLSX.utils.encode_cell({ r, c });
+        const cell = sheet[addr];
+        return { addr, value: cell ? cell.v : '' };
+      };
+      const rows = [];
+      for (let r = headerRow; r <= Math.min(range.e.r, 5000); r++) {
+        const action = normalizeText(sheet[XLSX.utils.encode_cell({ r, c: cols['Action'] ?? 0 })]?.v);
+        const pn = normalizeText(getCell(r, 'Part Number').value);
+        if (!pn) break;
+        if (action === '#EOF') break;
+        rows.push({
+          row: r + 1, // 1-based for display
+          pn,
+          cells: Object.fromEntries(required.map(h => [h, getCell(r, h)]))
+        });
+      }
+      return rows;
+    }
+
+    // ===== QC core =====
+    const SPECIAL_L1_KEYWORDS = ['Docking', 'Keyboard', 'Combo', 'Charger', 'Adapter'].map(s => s.toLowerCase());
+
+    function isSpecialL1Category(l1Category) {
+      const l1 = normalizeText(l1Category).toLowerCase();
+      if (!l1) return false;
+      return SPECIAL_L1_KEYWORDS.some(k => l1.includes(k));
+    }
+
+    function performOfferingFacetQC() {
+      try {
+        hideError();
+        if (!ialWb) throw new Error('请先上传 IAL Document');
+        if (!offeringWb) throw new Error('请先上传 Offering 数据表');
+
+        // sheets validation
+        const requiredIALSheets = ['Pn level', 'PN_VirtualCategory', 'PN_Audience', 'IAL Contact & Comments', 'PN_Facets'];
+        const missingIAL = requiredIALSheets.filter(n => !ialWb.SheetNames.includes(n));
+        if (missingIAL.length) throw new Error(`IAL缺少工作表: ${missingIAL.join(', ')}`);
+        if (!offeringWb.SheetNames.includes('OPTSVC_MMR')) throw new Error('数据表缺少工作表: OPTSVC_MMR');
+        if (!offeringWb.SheetNames.includes('FACETLINK')) throw new Error('数据表缺少工作表: FACETLINK');
+
+        const pnMap = buildPnLevelMap(ialWb.Sheets['Pn level']);
+        const vcMap = buildVirtualCategoryMap(ialWb.Sheets['PN_VirtualCategory']);
+        const audMap = buildAudienceMap(ialWb.Sheets['PN_Audience']);
+        const contacts = getContactManagers(ialWb.Sheets['IAL Contact & Comments']);
+        const ialFacetMap = buildIALPnFacetsMap(ialWb.Sheets['PN_Facets']);
+        const facetLinkParsed = buildFacetLinkMap(offeringWb.Sheets['FACETLINK']);
+        const facetLinkMap = facetLinkParsed.pnToFacets;
+        const facetLinkDuplicates = facetLinkParsed.duplicates;
+
+        const dataRows = parseOptSvcMMR(offeringWb.Sheets['OPTSVC_MMR']);
+        if (!dataRows.length) throw new Error('OPTSVC_MMR中未找到任何数据行');
+
+        const allResults = [];
+        let passItems = 0, failItems = 0, warnItems = 0;
+
+        dataRows.forEach(dr => {
+          const pn = dr.pn;
+          const baseline = pnMap.get(pn);
+          const vc = vcMap.get(pn);
+          const aud = audMap.get(pn);
+
+          const checks = [];
+          if (!baseline) {
+            allResults.push({ pn, row: dr.row, notFound: true, checks: [] });
+            failItems++;
+            return;
+          }
+
+          // Build expected values
+          const expected = {
+            productTitle: baseline.productTitle,
+            l1: baseline.l1,
+            l2: baseline.l2,
+            solutionCategory: (vc && vc.virtCats) ? vc.virtCats.join(',') : '',
+            mktRep: contacts.productMarketingManager,
+            optionDev: contacts.productDevelopmentManager,
+            supportedOS: 'OS Independent',
+            audience: (aud && aud.audiences) ? aud.audiences.join(',') : '',
+            eow: baseline.eow,
+            ad: baseline.ad,
+            ga: baseline.ga
+          };
+
+          const addCheck = (name, baseVal, testCell, testVal, comparator, extraMsgFn) => {
+            const base = normalizeText(baseVal);
+            const test = normalizeText(testVal);
+            let res = { status: 'fail', message: '' };
+            try { res = comparator(base, test); } catch (e) { res = { status: 'fail', message: e.message }; }
+            if (res.status === 'pass') passItems++;
+            else if (res.status === 'warn') warnItems++;
+            else failItems++;
+            checks.push({
+              name,
+              baselineValue: base,
+              baselineCell: res.baselineCell || '-',
+              testValue: test,
+              testCell,
+              status: res.status,
+              message: res.message || (extraMsgFn ? extraMsgFn() : '')
+            });
+          };
+
+          const eq = (b, t) => ({ status: b === t ? 'pass' : 'fail', message: b === t ? '一致' : '不一致' });
+          const dateEq = (b, t) => {
+            const bb = normalizeDate(b);
+            const tt = normalizeDate(t);
+            return { status: bb === tt ? 'pass' : 'fail', message: bb === tt ? '日期一致' : `日期不一致 (${bb} vs ${tt})` };
+          };
+          const listEq = (b, t) => {
+            const bb = normalizeList(b);
+            const tt = normalizeList(t);
+            const ok = sameListAsSet(bb, tt, { upper: false });
+            return { status: ok ? 'pass' : 'fail', message: ok ? '集合一致(忽略顺序)' : `集合不一致 (基准:${bb.join(',')} | 数据:${tt.join(',')})` };
+          };
+          const listContainsAll = (requiredStr, actualStr) => {
+            const required = normalizeList(requiredStr).map(x => x.toLowerCase());
+            const actual = new Set(normalizeList(actualStr).map(x => x.toLowerCase()));
+            const missing = required.filter(x => x && !actual.has(x));
+            if (required.length === 0) {
+              return { status: 'pass', message: '无必填Audience' };
+            }
+            if (missing.length === 0) {
+              return { status: 'pass', message: '数据表Audience包含所有必填项(允许额外值)' };
+            }
+            return { status: 'fail', message: `数据表Audience缺少必填项: ${missing.join(', ')}` };
+          };
+
+          const facetCompare = (pn) => {
+            const base = ialFacetMap.get(pn);
+            const test = facetLinkMap.get(pn);
+            if (!base && !test) return { status: 'warn', message: 'IAL PN_Facets 与 FACETLINK 中都未找到该PN的facet数据', base, test, missing: [], extra: [], mismatched: [], dupForPn: [] };
+            if (!base) return { status: 'fail', message: 'IAL PN_Facets 中未找到该PN的facet数据', base, test, missing: [], extra: [], mismatched: [], dupForPn: [] };
+            if (!test) return { status: 'fail', message: 'FACETLINK 中未找到该PN的facet数据', base, test, missing: [], extra: [], mismatched: [], dupForPn: [] };
+
+            const baseKeys = new Set([...base.keys()]);
+            const testKeys = new Set([...test.keys()]);
+            const missing = [...baseKeys].filter(k => !testKeys.has(k));
+            const extra = [...testKeys].filter(k => !baseKeys.has(k));
+            const mismatched = [];
+            [...baseKeys].forEach(k => {
+              if (!testKeys.has(k)) return;
+              const bvRaw = base.get(k);
+              const tvRaw = test.get(k);
+              const bv = normalizeFacetValue(bvRaw);
+              const tv = normalizeFacetValue(tvRaw);
+              if (bv !== tv) mismatched.push({ k, bv, tv });
+            });
+
+            const dupForPn = facetLinkDuplicates.filter(d => d.pn === pn);
+            const problems = missing.length + extra.length + mismatched.length + dupForPn.length;
+            if (problems === 0) return { status: 'pass', message: `Facet一致（共${baseKeys.size}项）`, base, test, missing, extra, mismatched, dupForPn };
+
+            const parts = [];
+            if (missing.length) parts.push(`缺失${missing.length}项: ${missing.slice(0,5).join(', ')}${missing.length>5?'...':''}`);
+            if (extra.length) parts.push(`多出${extra.length}项: ${extra.slice(0,5).join(', ')}${extra.length>5?'...':''}`);
+            if (mismatched.length) parts.push(`值不一致${mismatched.length}项: ${mismatched.slice(0,3).map(x=>`${x.k}(${x.bv}≠${x.tv})`).join('; ')}${mismatched.length>3?'...':''}`);
+            if (dupForPn.length) parts.push(`FACETLINK重复/冲突${dupForPn.length}项（同一FacetName多值）`);
+
+            return { status: 'fail', message: parts.join(' | '), base, test, missing, extra, mismatched, dupForPn };
+          };
+
+          // Marketing/Invoice -> Product Title
+          addCheck('Marketing Description', expected.productTitle, dr.cells['Marketing Description'].addr, dr.cells['Marketing Description'].value, eq);
+          addCheck('Invoice Description', expected.productTitle, dr.cells['Invoice Description'].addr, dr.cells['Invoice Description'].value, eq);
+
+          addCheck('Categorization Level 1', expected.l1, dr.cells['Categorization Level 1'].addr, dr.cells['Categorization Level 1'].value, eq);
+          addCheck('Categorization Level 2', expected.l2, dr.cells['Categorization Level 2'].addr, dr.cells['Categorization Level 2'].value, eq);
+
+          addCheck('Solution Category', expected.solutionCategory, dr.cells['Solution Category'].addr, dr.cells['Solution Category'].value, listEq);
+          addCheck('Mkt Rep', expected.mktRep, dr.cells['Mkt Rep'].addr, dr.cells['Mkt Rep'].value, eq);
+          addCheck('Option Developer', expected.optionDev, dr.cells['Option Developer'].addr, dr.cells['Option Developer'].value, eq);
+          addCheck('Supported Operating Systems', expected.supportedOS, dr.cells['Supported Operating Systems'].addr, dr.cells['Supported Operating Systems'].value, eq);
+
+          // Audience: IAL columns are like "Public Web" -> normalize to "Public"
+          // Rule: if Public/BP/LE column(s) have values in IAL, data Audience must CONTAIN them (Non-CTO map is ignored).
+          addCheck('Audience', expected.audience, dr.cells['Audience'].addr, dr.cells['Audience'].value, listContainsAll);
+
+          addCheck('Early Order Window', expected.eow, dr.cells['Early Order Window'].addr, dr.cells['Early Order Window'].value, dateEq);
+          addCheck('Announce Date', expected.ad, dr.cells['Announce Date'].addr, dr.cells['Announce Date'].value, dateEq);
+          addCheck('General Availability Date', expected.ga, dr.cells['General Availability Date'].addr, dr.cells['General Availability Date'].value, dateEq);
+
+          // WW LinkID rule
+          const ww = normalizeText(dr.cells['WW LinkID'].value);
+          const isSpecial = isSpecialL1Category(expected.l1);
+          let wwRes = { status: 'pass', message: 'OK' };
+          if (!ww) {
+            wwRes = { status: 'fail', message: 'WW LinkID 为空' };
+          } else if (!isSpecial) {
+            wwRes = (ww === pn)
+              ? { status: 'pass', message: '非特殊L1：WW LinkID 应等于 PN' }
+              : { status: 'fail', message: `非特殊L1：WW LinkID 应等于 PN (${pn})` };
+          } else {
+            wwRes = { status: 'warn', message: 'L1包含 Docking/Keyboard/Combo/Charger/Adapter：仅标注（不校验 countrylink US），请人工确认 WW LinkID 是否为“countrylink含US”的PN' };
+          }
+          if (wwRes.status === 'pass') passItems++; else if (wwRes.status === 'warn') warnItems++; else failItems++;
+          checks.push({
+            name: 'WW LinkID',
+            baselineValue: isSpecial ? '(标注：需维护为countrylink含US的PN)' : pn,
+            baselineCell: '-',
+            testValue: ww,
+            testCell: dr.cells['WW LinkID'].addr,
+            status: wwRes.status,
+            message: wwRes.message
+          });
+
+          // FACETLINK vs IAL PN_Facets
+          const facetRes = facetCompare(pn);
+          if (facetRes.status === 'pass') passItems++;
+          else if (facetRes.status === 'warn') warnItems++;
+          else failItems++;
+          const baseFacetCount = ialFacetMap.get(pn)?.size ?? 0;
+          const testFacetCount = facetLinkMap.get(pn)?.size ?? 0;
+          const facetDetailsHtml = `
+            <details class="qc-details">
+              <summary>展开查看基准/数据明细</summary>
+              <div class="diff-line">
+                <span class="diff-badge">缺失</span>${formatListPreview(facetRes.missing || [], 30) || '(无)'}
+              </div>
+              <div class="diff-line">
+                <span class="diff-badge">多出</span>${formatListPreview(facetRes.extra || [], 30) || '(无)'}
+              </div>
+              <div class="diff-line">
+                <span class="diff-badge">不一致</span>${(facetRes.mismatched && facetRes.mismatched.length)
+                  ? escapeHtml(facetRes.mismatched.slice(0, 20).map(x => `${x.k}(${x.bv}≠${x.tv})`).join('；')) + (facetRes.mismatched.length > 20 ? `… +${facetRes.mismatched.length - 20} more` : '')
+                  : '(无)'}
+              </div>
+              ${facetRes.dupForPn && facetRes.dupForPn.length ? `<div class="diff-line"><span class="diff-badge">冲突</span>${escapeHtml(facetRes.dupForPn.slice(0,10).map(d=>`${d.fname}(${d.prev}≠${d.next})`).join('；'))}${facetRes.dupForPn.length>10?`… +${facetRes.dupForPn.length-10} more`:''}</div>` : ''}
+              <div class="kv-grid">
+                <div class="kv-box">
+                  <div class="kv-box-title">基准 IAL PN_Facets（${baseFacetCount}项）</div>
+                  <div class="kv-pre">${formatKVPreview(facetRes.base, 200) || '(空)'}</div>
+                </div>
+                <div class="kv-box">
+                  <div class="kv-box-title">数据 Offering FACETLINK（${testFacetCount}项）</div>
+                  <div class="kv-pre">${formatKVPreview(facetRes.test, 200) || '(空)'}</div>
+                </div>
+              </div>
+            </details>
+          `;
+          checks.push({
+            name: 'Facet (FACETLINK ↔ PN_Facets)',
+            baselineValue: `PN_Facets: ${baseFacetCount}项`,
+            baselineCell: 'IAL PN_Facets',
+            testValue: `FACETLINK: ${testFacetCount}项`,
+            testCell: 'Offering FACETLINK',
+            status: facetRes.status,
+            message: facetRes.message,
+            detailsHtml: facetDetailsHtml
+          });
+
+          allResults.push({
+            pn,
+            row: dr.row,
+            notFound: false,
+            baselineRow: baseline.row,
+            checks
+          });
+        });
+
+        displayOfferingFacetResults(allResults, passItems, warnItems, failItems);
+      } catch (err) {
+        showError(`校验过程出错: ${err.message}`);
+        console.error(err);
+      }
+    }
+
+    function displayOfferingFacetResults(allResults, passItems, warnItems, failItems) {
+      const resultsDiv = document.getElementById('offeringFacetResults');
+      const container = document.getElementById('offeringFacetCheckResults');
+      const summaryDiv = document.getElementById('offeringFacetSummary');
+      container.innerHTML = '';
+
+      const totalInfoDiv = document.createElement('div');
+      totalInfoDiv.style.cssText = 'background:#e3f2fd;border:2px solid #2196f3;border-radius:8px;padding:14px;margin-bottom:18px;font-weight:bold;';
+      totalInfoDiv.innerHTML = `<div style="text-align:center;">共检验 <span style="color:#2196f3;font-size:20px;">${allResults.length}</span> 个 PN</div>`;
+      container.appendChild(totalInfoDiv);
+
+      allResults.forEach((r, idx) => {
+        const group = document.createElement('div');
+        group.style.cssText = 'margin-bottom:26px;border:2px solid #667eea;border-radius:12px;padding:18px;background:linear-gradient(135deg, rgba(102,126,234,.05) 0%, rgba(118,75,162,.05) 100%);';
+
+        const header = document.createElement('div');
+        header.style.cssText = 'background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:12px 18px;border-radius:8px;margin-bottom:12px;font-weight:bold;';
+
+        if (r.notFound) {
+          header.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <span style="font-size:1.15rem;">📦 PN ${idx + 1}: ${r.pn}</span><br>
+                <small style="opacity:.9;">数据表第 ${r.row} 行</small>
+              </div>
+              <div style="background:#dc3545;padding:7px 14px;border-radius:20px;font-size:.9rem;">❌ 基准缺失</div>
+            </div>
+          `;
+          const msg = document.createElement('div');
+          msg.style.cssText = 'background:#f8d7da;color:#721c24;padding:14px;border-radius:8px;border:1px solid #f5c6cb;';
+          msg.textContent = `⚠️ IAL 的 Pn level 中未找到 PN "${r.pn}"`;
+          group.appendChild(header);
+          group.appendChild(msg);
+          container.appendChild(group);
+          return;
+        }
+
+        const total = r.checks.length;
+        const passed = r.checks.filter(c => c.status === 'pass').length;
+        const warned = r.checks.filter(c => c.status === 'warn').length;
+        const passRate = total ? ((passed / total) * 100).toFixed(1) : '0.0';
+
+        header.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <div>
+              <span style="font-size:1.15rem;">📦 PN ${idx + 1}: ${r.pn}</span><br>
+              <small style="opacity:.9;">数据表第 ${r.row} 行 ↔ IAL Pn level 第 ${r.baselineRow} 行</small>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <div style="background:rgba(255,255,255,.2);padding:7px 14px;border-radius:20px;font-size:.9rem;">通过率: ${passRate}%</div>
+              ${warned ? `<div style="background:rgba(255,193,7,.25);padding:7px 14px;border-radius:20px;font-size:.9rem;">需手动: ${warned}</div>` : ''}
+            </div>
+          </div>
+        `;
+        group.appendChild(header);
+
+        const list = document.createElement('div');
+        r.checks.forEach(c => {
+          const item = document.createElement('div');
+          item.className = 'check-item';
+          let statusClass = c.status === 'pass' ? 'pass' : (c.status === 'warn' ? 'warn' : 'fail');
+          let statusText = c.status === 'pass' ? 'PASS' : (c.status === 'warn' ? '需手动' : 'FAIL');
+          let extraMsg = c.message ? `<br><small style="color:${c.status === 'pass' ? '#389e0d' : (c.status === 'warn' ? '#d46b08' : '#cf1322')};">${escapeHtml(c.message)}</small>` : '';
+          let extraDetails = c.detailsHtml ? `<div>${c.detailsHtml}</div>` : '';
+          item.innerHTML = `
+            <div class="item-name">${c.name}</div>
+            <div class="item-values">
+              基准(${c.baselineCell}): ${c.baselineValue || '(空)'}<br>
+              数据(${c.testCell}): ${normalizeText(c.testValue) || '(空)'}${extraMsg}${extraDetails}
+            </div>
+            <div class="status ${statusClass}">${statusText}</div>
+          `;
+          list.appendChild(item);
+        });
+        group.appendChild(list);
+        container.appendChild(group);
+      });
+
+      const totalPn = allResults.length;
+      const pnMissing = allResults.filter(r => r.notFound).length;
+      const pnManual = allResults.filter(r => !r.notFound && r.checks.some(c => c.status === 'warn')).length;
+      const pnPass = allResults.filter(r => !r.notFound && r.checks.length && r.checks.every(c => c.status === 'pass')).length;
+      const pnFail = totalPn - pnMissing - pnPass - pnManual;
+
+      const totalItems = passItems + warnItems + failItems;
+      const itemPassRate = totalItems ? ((passItems / totalItems) * 100).toFixed(1) : '0.0';
+
+      summaryDiv.innerHTML = `
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="summary-title">总PN数</div>
+            <div class="summary-value">${totalPn}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-title">PN完全通过</div>
+            <div class="summary-value" style="color:#389e0d;">${pnPass}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-title">PN需手动</div>
+            <div class="summary-value" style="color:#d46b08;">${pnManual}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-title">PN失败</div>
+            <div class="summary-value" style="color:#cf1322;">${pnFail}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-title">基准缺失</div>
+            <div class="summary-value" style="color:#cf1322;">${pnMissing}</div>
+          </div>
+        </div>
+        <div class="summary-sub">
+          检查项统计：<strong>PASS</strong> ${passItems}，<strong>需手动</strong> ${warnItems}，<strong>FAIL</strong> ${failItems}（PASS占比 ${itemPassRate}%）
+        </div>
+      `;
+
+      resultsDiv.style.display = 'block';
+      resultsDiv.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ===== wire up uploads =====
+    document.getElementById('fileIAL').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        ialWb = await readWorkbookFromFile(file);
+        setFileInfo('fileIALInfo', file, ialWb);
+        updateOfferingFacetButtonState();
+        hideError();
+      } catch (err) {
+        showError(`读取 IAL 文件失败: ${err.message}`);
+      }
+    });
+    document.getElementById('fileOffering').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        offeringWb = await readWorkbookFromFile(file);
+        setFileInfo('fileOfferingInfo', file, offeringWb);
+        updateOfferingFacetButtonState();
+        hideError();
+      } catch (err) {
+        showError(`读取 Offering 文件失败: ${err.message}`);
+      }
+    });
+
+    // CountryLink uploads
+    document.getElementById('fileIALCountry').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        ialWb = await readWorkbookFromFile(file);
+        setFileInfo('fileIALCountryInfo', file, ialWb);
+        // also reflect to first tab info if present
+        const infoDiv = document.getElementById('fileIALInfo');
+        if (infoDiv) setFileInfo('fileIALInfo', file, ialWb);
+        updateOfferingFacetButtonState();
+        updateCountryButtonState();
+        hideError();
+      } catch (err) {
+        showError(`读取 IAL 文件失败: ${err.message}`);
+      }
+    });
+    document.getElementById('fileCountryObjLink').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        countryLinkWb = await readWorkbookFromFile(file);
+        setFileInfo('fileCountryObjLinkInfo', file, countryLinkWb);
+        updateCountryButtonState();
+        hideError();
+      } catch (err) {
+        showError(`读取 CountryObjLink 文件失败: ${err.message}`);
+      }
+    });
+  </script>
+</body>
+</html>
+
+
