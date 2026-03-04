@@ -3493,7 +3493,6 @@
                     resolution: null,
                     tech: [],
                     refreshRate: null,
-                    ppi: null,
                     brightness: null
                 };
                 
@@ -3508,9 +3507,6 @@
                 
                 const refreshMatch = baselineStr.match(/(\d+)\s*Hz/i);
                 if (refreshMatch) keyIndicators.refreshRate = refreshMatch[1] + 'Hz';
-                
-                const ppiMatch = baselineStr.match(/(\d+)\s*ppi/i);
-                if (ppiMatch) keyIndicators.ppi = ppiMatch[1] + 'ppi';
                 
                 const brightnessMatch = baselineStr.match(/(\d+)\s*nits?/i);
                 if (brightnessMatch) keyIndicators.brightness = brightnessMatch[1] + ' nits';
@@ -3541,14 +3537,6 @@
                         foundIndicators.push(`刷新率: ${keyIndicators.refreshRate}`);
                     } else {
                         missingIndicators.push(`刷新率: ${keyIndicators.refreshRate}`);
-                    }
-                }
-                
-                if (keyIndicators.ppi) {
-                    if (normalize(displayTypeValue).includes(normalize(keyIndicators.ppi))) {
-                        foundIndicators.push(`PPI: ${keyIndicators.ppi}`);
-                    } else {
-                        missingIndicators.push(`PPI: ${keyIndicators.ppi}`);
                     }
                 }
                 
